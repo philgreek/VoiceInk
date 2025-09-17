@@ -1,0 +1,67 @@
+
+import React from 'react';
+import { DownloadIcon, TrashIcon, SettingsIcon, UndoIcon, RedoIcon } from './icons';
+import { t, Language } from '../utils/translations';
+
+interface HeaderProps {
+  onExport: () => void;
+  onClear: () => void;
+  onSettings: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  lang: Language;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, onUndo, onRedo, canUndo, canRedo, lang }) => {
+  const buttonClasses = "p-2 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-transparent hover:bg-[var(--bg-surface)] rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent";
+
+  return (
+    <header className="flex-shrink-0 flex justify-between items-center py-5 px-4 sm:py-7 sm:px-6 border-b border-[var(--border-color)] sticky top-0 bg-[var(--bg-header)] backdrop-blur-sm z-10">
+      <h1 className="text-3xl font-bold text-[var(--text-primary)]">
+        <span>Voice</span><span className="bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">Ink</span>
+      </h1>
+      <div className="flex items-center gap-1 sm:gap-2">
+         <button
+          onClick={onUndo}
+          disabled={!canUndo}
+          className={buttonClasses}
+          aria-label={t('undo', lang)}
+        >
+          <UndoIcon className="w-7 h-7" />
+        </button>
+         <button
+          onClick={onRedo}
+          disabled={!canRedo}
+          className={buttonClasses}
+          aria-label={t('redo', lang)}
+        >
+          <RedoIcon className="w-7 h-7" />
+        </button>
+        <div className="w-px h-7 bg-[var(--border-color)] mx-2"></div>
+        <button
+          onClick={onExport}
+          className={buttonClasses}
+          aria-label={t('exportChat', lang)}
+        >
+          <DownloadIcon className="w-7 h-7" />
+        </button>
+        <button
+          onClick={onSettings}
+          className={`${buttonClasses} rounded-full`}
+          aria-label={t('settings', lang)}
+        >
+          <SettingsIcon className="w-7 h-7" />
+        </button>
+        <button
+          onClick={onClear}
+          className={`${buttonClasses} rounded-full hover:text-red-500`}
+          aria-label={t('clearChat', lang)}
+        >
+          <TrashIcon className="w-7 h-7" />
+        </button>
+      </div>
+    </header>
+  );
+};
