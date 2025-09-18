@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
 import { Message, Session, Settings, SelectionContext } from './types';
@@ -71,7 +69,6 @@ const App: React.FC = () => {
   const streamAudioRef = useRef<HTMLAudioElement>(null);
   const fileAudioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const lastProcessedTranscript = useRef('');
   const chatWindowRef = useRef<HTMLDivElement>(null);
   
   const [settings, setSettings] = useState<Settings>(() => {
@@ -86,7 +83,32 @@ const App: React.FC = () => {
 
   const lang = settings.language as Language;
 
-  const { startListening, stopListening, finalTranscript, interimTranscript, resetFinalTranscript, restartListening } = useTranscription({ lang });
+  const handleFinalTranscript = useCallback((transcript: string) => {
+    if (!transcript) return;
+    
+    setMessages(currentMessages => produce(currentMessages, draft => {
+      const lastMessage = draft.length > 0 ? draft[draft.length - 1] : null;
+      // Use a ref for currentSpeaker to avoid stale closures in the callback
+      const speaker = isPushToTalkActive ? 'user' : 'interlocutor';
+
+      if (lastMessage && lastMessage.sender === speaker) {
+        lastMessage.text = (lastMessage.text + ' ' + transcript).trim();
+      } else {
+        draft.push({
+          id: `msg-${Date.now()}`,
+          text: transcript,
+          timestamp: Date.now(),
+          sender: speaker,
+        });
+      }
+    }));
+  }, [setMessages, isPushToTalkActive]);
+
+  const { startListening, stopListening, interimTranscript, restartListening } = useTranscription({ 
+    lang,
+    onFinalTranscript: handleFinalTranscript,
+  });
+
 
   useEffect(() => {
     try {
@@ -324,26 +346,6 @@ const App: React.FC = () => {
     setCurrentSpeaker(newPttState ? 'user' : 'interlocutor');
     restartListening();
   }, [isRecording, isPaused, isTranscribingFile, isPushToTalkActive, restartListening]);
-
-  useEffect(() => {
-    if (finalTranscript && finalTranscript !== lastProcessedTranscript.current) {
-      lastProcessedTranscript.current = finalTranscript;
-      setMessages(produce(draft => {
-        const lastMessage = draft.length > 0 ? draft[draft.length - 1] : null;
-        if (lastMessage && lastMessage.sender === currentSpeaker) {
-          lastMessage.text = (lastMessage.text + ' ' + finalTranscript).trim();
-        } else {
-          draft.push({
-            id: `msg-${Date.now()}`,
-            text: finalTranscript,
-            timestamp: Date.now(),
-            sender: currentSpeaker,
-          });
-        }
-      }));
-      resetFinalTranscript();
-    }
-  }, [finalTranscript, currentSpeaker, setMessages, resetFinalTranscript]);
 
   const handleClear = () => {
       if (window.confirm(t('clearChatConfirmation', lang))) {
@@ -652,7 +654,7 @@ const App: React.FC = () => {
         ref={chatWindowRef}
         messages={messages} 
         interimTranscript={interimTranscript} 
-        currentSpeaker={currentSpeaker} 
+        currentSpeaker={isPushToTalkActive ? 'user' : 'interlocutor'} 
         isRecording={isRecording}
         isPaused={isPaused}
         isTranscribingFile={isTranscribingFile}
