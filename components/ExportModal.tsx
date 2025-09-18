@@ -1,4 +1,6 @@
 
+
+
 import React from 'react';
 import { DownloadIcon, ClipboardIcon, ShareIcon, XIcon } from './icons';
 import { t, Language } from '../utils/translations';
@@ -7,9 +9,11 @@ interface ExportModalProps {
   onClose: () => void;
   onSaveAsTxt: () => void;
   onSaveAsPdf: () => void;
+  onSaveAsPng: () => void;
   onSaveAsDocx: () => void;
   onCopyToClipboard: () => void;
   onSendToApp: () => void;
+  isExporting: boolean;
   lang: Language;
 }
 
@@ -17,9 +21,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   onClose,
   onSaveAsTxt,
   onSaveAsPdf,
+  onSaveAsPng,
   onSaveAsDocx,
   onCopyToClipboard,
   onSendToApp,
+  isExporting,
   lang,
 }) => {
   return (
@@ -44,7 +50,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
              <div className="space-y-2">
                  <button
                     onClick={onSaveAsTxt}
-                    className="w-full flex items-center gap-4 text-left p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02]"
+                    disabled={isExporting}
+                    className="w-full flex items-center gap-4 text-left p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50"
                   >
                     <DownloadIcon className="w-5 h-5 text-[var(--accent-primary)] flex-shrink-0 ml-1" />
                     <div>
@@ -54,17 +61,33 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                  </button>
                  <button
                     onClick={onSaveAsPdf}
-                    className="w-full flex items-center gap-4 text-left p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02]"
+                    disabled={isExporting}
+                    className="w-full flex items-center gap-4 text-left p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-wait"
                   >
                     <DownloadIcon className="w-5 h-5 text-[var(--accent-primary)] flex-shrink-0 ml-1" />
                     <div>
-                      <span className="font-semibold text-[var(--text-primary)] text-base">{t('saveAsPdf', lang)}</span>
-                      <p className="text-sm text-[var(--text-secondary)]">{t('saveAsPdfDescription', lang)}</p>
+                      <span className="font-semibold text-[var(--text-primary)] text-base flex items-center gap-2">
+                        {isExporting ? t('exportingPdf', lang) : t('saveScreenshotPdf', lang)}
+                        {isExporting && <div className="w-4 h-4 border-2 border-[var(--text-primary)] border-t-transparent rounded-full animate-spin"></div>}
+                      </span>
+                      <p className="text-sm text-[var(--text-secondary)]">{t('saveScreenshotPdfDescription', lang)}</p>
+                    </div>
+                 </button>
+                 <button
+                    onClick={onSaveAsPng}
+                    disabled={isExporting}
+                    className="w-full flex items-center gap-4 text-left p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    <DownloadIcon className="w-5 h-5 text-[var(--accent-primary)] flex-shrink-0 ml-1" />
+                    <div>
+                      <span className="font-semibold text-[var(--text-primary)] text-base">{t('saveAsPng', lang)}</span>
+                      <p className="text-sm text-[var(--text-secondary)]">{t('saveAsPngDescription', lang)}</p>
                     </div>
                  </button>
                  <button
                     onClick={onSaveAsDocx}
-                    className="w-full flex items-center gap-4 text-left p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02]"
+                    disabled={isExporting}
+                    className="w-full flex items-center gap-4 text-left p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50"
                   >
                     <DownloadIcon className="w-5 h-5 text-[var(--accent-primary)] flex-shrink-0 ml-1" />
                     <div>
@@ -77,7 +100,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           <div className="pt-2 space-y-2">
             <button
               onClick={onCopyToClipboard}
-              className="w-full flex items-center gap-4 text-left p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02]"
+              disabled={isExporting}
+              className="w-full flex items-center gap-4 text-left p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50"
             >
               <ClipboardIcon className="w-5 h-5 text-[var(--accent-primary)] flex-shrink-0 ml-1" />
               <div>
@@ -87,7 +111,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </button>
              <button
               onClick={onSendToApp}
-              className="w-full flex items-center gap-4 text-left p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02]"
+              disabled={isExporting}
+              className="w-full flex items-center gap-4 text-left p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50"
             >
               <ShareIcon className="w-5 h-5 text-[var(--accent-primary)] flex-shrink-0 ml-1" />
               <div>

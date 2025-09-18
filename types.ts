@@ -1,4 +1,5 @@
 
+
 export interface Message {
   id: string;
   text: string;
@@ -17,6 +18,19 @@ export interface Settings {
   interlocutor: SpeakerProfile;
   theme: 'dark' | 'light' | 'neutral';
   language: string;
+}
+
+export interface SelectionContext {
+    messageId: string;
+    text: string;
+}
+
+export interface Session {
+  id: string;
+  name: string;
+  messages: Message[];
+  settings: Settings;
+  savedAt: string;
 }
 
 // Web Speech API types for TypeScript

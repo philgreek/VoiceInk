@@ -1,6 +1,7 @@
 
 
-import React, { useRef, useEffect } from 'react';
+
+import React, { useRef, useEffect, forwardRef } from 'react';
 import type { Message, Settings } from '../types';
 import { MicIcon, FileUploadIcon } from './icons';
 import { ChatMessage } from './ChatMessage';
@@ -11,11 +12,11 @@ interface ChatWindowProps {
   interimTranscript: string;
   currentSpeaker: 'user' | 'interlocutor';
   isRecording: boolean;
+  isPaused: boolean;
   isTranscribingFile: boolean;
   settings: Settings;
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
-  onSplitMessage: (id: string, selectedText: string, newSpeaker: 'user' | 'interlocutor') => void;
   onDeleteMessage: (id: string) => void;
   lang: Language;
 }
@@ -25,10 +26,9 @@ const MessageList: React.FC<{
   settings: Settings;
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
-  onSplitMessage: (id: string, selectedText: string, newSpeaker: 'user' | 'interlocutor') => void;
   onDeleteMessage: (id: string) => void;
   lang: Language;
-}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onSplitMessage, onDeleteMessage, lang }) => {
+}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, lang }) => {
   return (
     <>
       {messages.map((msg, index) => (
@@ -38,7 +38,6 @@ const MessageList: React.FC<{
           settings={settings}
           onUpdateMessage={onUpdateMessage}
           onChangeSpeaker={onChangeSpeaker}
-          onSplitMessage={onSplitMessage}
           onDeleteMessage={onDeleteMessage}
           lang={lang}
           isFirstMessage={index === 0}
@@ -72,24 +71,28 @@ const Placeholder: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ 
+export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({ 
     messages, 
     interimTranscript, 
     currentSpeaker, 
     isRecording,
+    isPaused,
     isTranscribingFile,
     settings,
     onUpdateMessage,
     onChangeSpeaker,
-    onSplitMessage,
     onDeleteMessage,
     lang,
-}) => {
+}, ref) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, interimTranscript]);
+    // Only auto-scroll when live transcription is active.
+    // This prevents scrolling during edits when recording is stopped or paused.
+    if (isRecording && !isPaused) {
+      endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, interimTranscript, isRecording, isPaused]);
 
   const renderContent = () => {
     if (!isRecording && messages.length === 0) {
@@ -123,7 +126,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             settings={settings}
             onUpdateMessage={onUpdateMessage}
             onChangeSpeaker={onChangeSpeaker}
-            onSplitMessage={onSplitMessage}
             onDeleteMessage={onDeleteMessage}
             lang={lang}
         />
@@ -136,8 +138,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   return (
-    <div className="flex-grow overflow-y-auto no-scrollbar">
+    <div className="flex-grow overflow-y-auto no-scrollbar" ref={ref}>
         {renderContent()}
     </div>
   );
-};
+});

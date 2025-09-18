@@ -7,6 +7,7 @@ interface HeaderProps {
   onExport: () => void;
   onClear: () => void;
   onSettings: () => void;
+  onHistoryClick: () => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -14,14 +15,16 @@ interface HeaderProps {
   lang: Language;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, onUndo, onRedo, canUndo, canRedo, lang }) => {
+export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, onHistoryClick, onUndo, onRedo, canUndo, canRedo, lang }) => {
   const buttonClasses = "p-2 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-transparent hover:bg-[var(--bg-surface)] rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent";
 
   return (
-    <header className="flex-shrink-0 flex justify-between items-center py-5 px-4 sm:py-7 sm:px-6 border-b border-[var(--border-color)] sticky top-0 bg-[var(--bg-header)] backdrop-blur-sm z-10">
-      <h1 className="text-3xl font-bold text-[var(--text-primary)]">
-        <span>Voice</span><span className="bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">Ink</span>
-      </h1>
+    <header className="flex-shrink-0 flex justify-between items-center py-4 px-4 sm:py-6 sm:px-6 border-b border-[var(--border-color)] sticky top-0 bg-[var(--bg-header)] backdrop-blur-sm z-10">
+      <button onClick={onHistoryClick} className="text-2xl font-bold text-[var(--text-primary)] truncate pr-4 text-left transition-opacity hover:opacity-80">
+        <h1>
+          <span>Voice</span><span className="bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">Ink</span>
+        </h1>
+      </button>
       <div className="flex items-center gap-1 sm:gap-2">
          <button
           onClick={onUndo}

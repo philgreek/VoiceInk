@@ -1,20 +1,27 @@
 
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-import { Message, Settings } from './types';
+import { Message, Session, Settings, SelectionContext } from './types';
 import { Header } from './components/Header';
+import { SessionBar } from './components/SessionBar';
 import { ChatWindow } from './components/ChatWindow';
 import { TranscriptionControls } from './components/TranscriptionControls';
 import { ExportModal } from './components/ExportModal';
 import { SettingsModal } from './components/SettingsModal';
 import { SourceSelectionModal } from './components/SourceSelectionModal';
 import { FileInstructionsModal } from './components/FileInstructionsModal';
+import { SessionNameModal } from './components/SessionNameModal';
+import { HistoryModal } from './components/HistoryModal';
 import { produce } from 'immer';
 import { t, Language } from './utils/translations';
 import { useHistoryState } from './hooks/useHistoryState';
+import { useSessionHistory } from './hooks/useSessionHistory';
 import jsPDF from 'jspdf';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
+import { ContextualActionBar } from './components/ContextualActionBar';
+import html2canvas from 'html2canvas';
 
 const defaultSettings: Settings = {
   user: {
@@ -30,7 +37,6 @@ const defaultSettings: Settings = {
   theme: 'dark',
   language: 'ru',
 };
-
 
 const App: React.FC = () => {
   const { 
@@ -52,12 +58,21 @@ const App: React.FC = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showFileInstructionsModal, setShowFileInstructionsModal] = useState(false);
+  const [showSessionNameModal, setShowSessionNameModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [sessionName, setSessionName] = useState('');
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const { sessions, saveSession, deleteSession } = useSessionHistory();
 
   const streamAudioRef = useRef<HTMLAudioElement>(null);
   const fileAudioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastProcessedTranscript = useRef('');
+  const chatWindowRef = useRef<HTMLDivElement>(null);
   
   const [settings, setSettings] = useState<Settings>(() => {
     try {
@@ -81,6 +96,34 @@ const App: React.FC = () => {
     }
   }, [settings]);
 
+    // Global listener for text selection to show the contextual action bar.
+    useEffect(() => {
+        const handleSelectionChange = () => {
+            const selection = window.getSelection();
+            const text = selection?.toString().trim();
+
+            if (text && selection?.anchorNode) {
+                const parentElement = (selection.anchorNode.nodeType === 3 ? selection.anchorNode.parentNode : selection.anchorNode) as HTMLElement;
+                const messageElement = parentElement?.closest('[data-message-id]');
+                
+                if (messageElement) {
+                    const messageId = messageElement.getAttribute('data-message-id');
+                    if (messageId) {
+                        setSelectionContext({ messageId, text });
+                        return;
+                    }
+                }
+            }
+            // If no valid selection, clear the context
+            setSelectionContext(null);
+        };
+
+        document.addEventListener('selectionchange', handleSelectionChange);
+        return () => {
+            document.removeEventListener('selectionchange', handleSelectionChange);
+        };
+    }, []);
+
   // Centralized control for speech recognition
   useEffect(() => {
     if (isRecording && !isPaused) {
@@ -89,6 +132,20 @@ const App: React.FC = () => {
       stopListening();
     }
   }, [isRecording, isPaused, startListening, stopListening]);
+  
+  // Prevent accidental page reload during an active session
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (isRecording) {
+        event.preventDefault();
+        event.returnValue = ''; // Required for Chrome and other browsers
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isRecording]);
 
   const stopMediaStream = useCallback(() => {
     if (mediaStream) {
@@ -113,18 +170,32 @@ const App: React.FC = () => {
     stopMediaStream();
   }, [stopMediaStream]);
 
-  const startTranscriptionSession = () => {
-    resetMessages([]);
+ const handleStopClick = () => {
+    if (messages.length > 0 && sessionName) {
+      saveSession({ name: sessionName, messages, settings });
+    }
+    stopTranscriptionSession();
+    setSessionName('');
+  };
+
+  const startRecordingFlow = () => {
     setIsRecording(true);
     setIsPaused(false);
     setCurrentSpeaker('interlocutor');
     setIsPushToTalkActive(false);
   };
+
+  const handleSessionNameConfirmed = (name: string) => {
+    setSessionName(name);
+    resetMessages([]); // Start with a clean slate for a new session
+    setShowSessionNameModal(false);
+    setShowSourceModal(true);
+  };
   
   const handleSourceSelected = async (source: 'microphone' | 'display') => {
       setShowSourceModal(false);
       if (source === 'microphone') {
-          startTranscriptionSession();
+          startRecordingFlow();
       } else {
           try {
               const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -151,7 +222,7 @@ const App: React.FC = () => {
               if (streamAudioRef.current) {
                 streamAudioRef.current.srcObject = stream;
               }
-              startTranscriptionSession();
+              startRecordingFlow();
           } catch (err) {
               console.error("Error starting display media:", err);
               if ((err as DOMException).name !== 'NotAllowedError') {
@@ -214,7 +285,7 @@ const App: React.FC = () => {
 
         setMediaStream(stream);
         setIsTranscribingFile(true);
-        startTranscriptionSession();
+        startRecordingFlow();
 
         if (fileAudioRef.current) {
             fileAudioRef.current.src = URL.createObjectURL(audioFile);
@@ -231,23 +302,19 @@ const App: React.FC = () => {
   }, [audioFile, stopTranscriptionSession, lang]);
 
 
-  const handleStartStopClick = useCallback(() => {
-    if (isRecording) {
-      if (isPaused) {
-        setIsPaused(false);
-      } else {
-        stopTranscriptionSession();
-      }
-    } else {
-      setShowSourceModal(true);
+  const handleStartClick = () => {
+    if (sessionName) { // A session is already loaded, continue it
+        setShowSourceModal(true);
+    } else { // Start a brand new session
+        setShowSessionNameModal(true);
     }
-  }, [isRecording, isPaused, stopTranscriptionSession]);
+  };
 
-  const handlePause = useCallback(() => {
+  const handlePauseClick = () => {
     if (isRecording && !isTranscribingFile) {
       setIsPaused(prev => !prev);
     }
-  }, [isRecording, isTranscribingFile]);
+  };
 
   const handleMicToggle = useCallback(() => {
     if (!isRecording || isPaused || isTranscribingFile) return;
@@ -255,12 +322,12 @@ const App: React.FC = () => {
     const newPttState = !isPushToTalkActive;
     setIsPushToTalkActive(newPttState);
     setCurrentSpeaker(newPttState ? 'user' : 'interlocutor');
-    // Use the new safe restart function from the hook
     restartListening();
   }, [isRecording, isPaused, isTranscribingFile, isPushToTalkActive, restartListening]);
 
   useEffect(() => {
-    if (finalTranscript) {
+    if (finalTranscript && finalTranscript !== lastProcessedTranscript.current) {
+      lastProcessedTranscript.current = finalTranscript;
       setMessages(produce(draft => {
         const lastMessage = draft.length > 0 ? draft[draft.length - 1] : null;
         if (lastMessage && lastMessage.sender === currentSpeaker) {
@@ -281,6 +348,7 @@ const App: React.FC = () => {
   const handleClear = () => {
       if (window.confirm(t('clearChatConfirmation', lang))) {
           resetMessages([]);
+          setSessionName('');
       }
   };
 
@@ -304,55 +372,50 @@ const App: React.FC = () => {
   
   const handleSplitMessage = useCallback((messageId: string, selectedText: string, newSpeaker: 'user' | 'interlocutor') => {
     setMessages(produce(draft => {
-      const originalMessageIndex = draft.findIndex(m => m.id === messageId);
-      if (originalMessageIndex === -1) return;
+        const originalMessageIndex = draft.findIndex(m => m.id === messageId);
+        if (originalMessageIndex === -1) return;
 
-      const originalMessage = draft[originalMessageIndex];
-      const originalText = originalMessage.text;
-      const startIndex = originalText.indexOf(selectedText);
+        const originalMessage = draft[originalMessageIndex];
+        const originalText = originalMessage.text;
+        const startIndex = originalText.indexOf(selectedText);
 
-      if (startIndex === -1) return;
+        if (startIndex === -1) return;
 
-      const textBefore = originalText.substring(0, startIndex).trim();
-      const textAfter = originalText.substring(startIndex + selectedText.length).trim();
-      
-      const messagesToInsert: Message[] = [];
-      let currentTime = originalMessage.timestamp;
-      
-      // Keep original message if there's text before, otherwise it will be replaced.
-      if (textBefore) {
-        originalMessage.text = textBefore;
-        messagesToInsert.push({
-          id: `msg-${Date.now()}`,
-          text: selectedText,
-          sender: newSpeaker,
-          timestamp: currentTime + 1,
-        });
-        if (textAfter) {
-           messagesToInsert.push({
-            id: `msg-${Date.now() + 1}`,
-            text: textAfter,
-            sender: originalMessage.sender,
-            timestamp: currentTime + 2,
-          });
+        const textBefore = originalText.substring(0, startIndex).trim();
+        const textAfter = originalText.substring(startIndex + selectedText.length).trim();
+        
+        const currentTime = originalMessage.timestamp;
+        
+        const newSelectedMessage: Message = {
+            id: `msg-${Date.now()}`,
+            text: selectedText,
+            sender: newSpeaker,
+            timestamp: currentTime + 1,
+        };
+
+        if (!textBefore && !textAfter) {
+            originalMessage.sender = newSpeaker;
+        } else if (!textBefore) {
+            originalMessage.text = textAfter;
+            draft.splice(originalMessageIndex, 0, newSelectedMessage);
+        } else if (!textAfter) {
+            originalMessage.text = textBefore;
+            draft.splice(originalMessageIndex + 1, 0, newSelectedMessage);
+        } else {
+            originalMessage.text = textBefore;
+            const newAfterMessage: Message = {
+                id: `msg-${Date.now() + 1}`,
+                text: textAfter,
+                sender: originalMessage.sender,
+                timestamp: currentTime + 2,
+            };
+            draft.splice(originalMessageIndex + 1, 0, newSelectedMessage, newAfterMessage);
         }
-        draft.splice(originalMessageIndex + 1, 0, ...messagesToInsert);
-      } else {
-        // Text was selected from the beginning
-        originalMessage.text = selectedText;
-        originalMessage.sender = newSpeaker;
-        if (textAfter) {
-          messagesToInsert.push({
-            id: `msg-${Date.now() + 1}`,
-            text: textAfter,
-            sender: newSpeaker === 'user' ? 'interlocutor' : 'user', // Opposite of the original speaker
-            timestamp: currentTime + 1
-          });
-           draft.splice(originalMessageIndex + 1, 0, ...messagesToInsert);
-        }
-      }
     }));
-  }, [setMessages]);
+    setSelectionContext(null);
+    window.getSelection()?.removeAllRanges();
+}, [setMessages]);
+
 
   const handleDeleteMessage = useCallback((messageId: string) => {
     setMessages(produce(draft => {
@@ -384,13 +447,17 @@ const App: React.FC = () => {
       .join('\n');
   };
 
+  const sanitizeFileName = (name: string) => {
+    return name.replace(/[^a-z0-9_-s]/gi, '_').replace(/\s+/g, '_').trim() || `chat-${new Date().toISOString()}`;
+  };
+
   const handleSaveAsTxt = () => {
     const text = formatChatForExport();
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `voiceink-chat-${new Date().toISOString()}.txt`;
+    a.download = `${sanitizeFileName(sessionName)}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -398,49 +465,99 @@ const App: React.FC = () => {
     setShowExportModal(false);
   };
   
-  const handleSaveAsPdf = () => {
-      const doc = new jsPDF();
-      let y = 15;
-      const leftMargin = 10;
-      const rightMargin = 10;
-      const bubblePadding = 3;
-      const avatarSize = 8;
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const maxLineWidth = pageWidth - leftMargin - rightMargin - avatarSize - 10;
+  const handleSaveAsPdf = async () => {
+    if (!chatWindowRef.current) return;
+    setIsExporting(true);
+  
+    try {
+      // Temporarily make sure the whole chat is visible for the screenshot
+      const originalHeight = chatWindowRef.current.style.height;
+      const originalOverflow = chatWindowRef.current.style.overflowY;
+      chatWindowRef.current.style.height = `${chatWindowRef.current.scrollHeight}px`;
+      chatWindowRef.current.style.overflowY = 'visible';
 
-      messages.forEach(msg => {
-          if (msg.text.trim() === '') return;
+      const canvas = await html2canvas(chatWindowRef.current, {
+        scale: 2, // Higher scale for better quality
+        useCORS: true,
+        backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-main').trim(),
+      });
+      
+      // Restore original styles
+      chatWindowRef.current.style.height = originalHeight;
+      chatWindowRef.current.style.overflowY = originalOverflow;
+  
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: 'a4'
+      });
+  
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      
+      const ratio = pdfWidth / imgWidth;
+      const canvasHeightInPdf = imgHeight * ratio;
+      
+      let heightLeft = canvasHeightInPdf;
+      let position = 0;
+  
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightInPdf);
+      heightLeft -= pdfHeight;
+  
+      while (heightLeft > 0) {
+        position -= pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightInPdf);
+        heightLeft -= pdfHeight;
+      }
+  
+      pdf.save(`${sanitizeFileName(sessionName)}.pdf`);
+    } catch (error) {
+      console.error("Failed to export as PDF:", error);
+      alert("Failed to export as PDF. Please try again.");
+    } finally {
+      setIsExporting(false);
+      setShowExportModal(false);
+    }
+  };
 
-          const isUser = msg.sender === 'user';
-          const profile = isUser ? settings.user : settings.interlocutor;
-          const text = msg.text;
-          const lines = doc.splitTextToSize(text, maxLineWidth);
-          const bubbleHeight = (lines.length * 5) + (bubblePadding * 2);
+  const handleSaveAsPng = async () => {
+    if (!chatWindowRef.current) return;
+    setIsExporting(true);
+    try {
+       // Temporarily make sure the whole chat is visible for the screenshot
+      const originalHeight = chatWindowRef.current.style.height;
+      const originalOverflow = chatWindowRef.current.style.overflowY;
+      chatWindowRef.current.style.height = `${chatWindowRef.current.scrollHeight}px`;
+      chatWindowRef.current.style.overflowY = 'visible';
 
-          if (y + bubbleHeight > pageHeight - 15) {
-              doc.addPage();
-              y = 15;
-          }
-          
-          // Avatar Color
-          const avatarColor = isUser ? '#0e7490' : '#475569'; // cyan-800 vs slate-600
-          doc.setFillColor(avatarColor);
-          doc.circle(leftMargin + (avatarSize / 2), y, avatarSize / 2, 'F');
-          
-          // Bubble Color
-          const bubbleColor = isUser ? '#06b6d4' : '#334155'; // cyan-500 vs slate-700
-          doc.setFillColor(bubbleColor);
-          doc.roundedRect(leftMargin + avatarSize + 2, y - (avatarSize/2) + 1, doc.getStringUnitWidth(lines.join('\n')) * 2.6 + (bubblePadding * 2) , bubbleHeight, 3, 3, 'F');
-          
-          doc.setTextColor(255, 255, 255);
-          doc.text(lines, leftMargin + avatarSize + 2 + bubblePadding, y + 2);
-          
-          y += bubbleHeight + 8;
+       const canvas = await html2canvas(chatWindowRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-main').trim(),
       });
 
-      doc.save(`voiceink-chat-${new Date().toISOString()}.pdf`);
+      // Restore original styles
+      chatWindowRef.current.style.height = originalHeight;
+      chatWindowRef.current.style.overflowY = originalOverflow;
+
+      const image = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = image;
+      a.download = `${sanitizeFileName(sessionName)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (error) {
+       console.error("Failed to export as PNG:", error);
+       alert("Failed to export as PNG. Please try again.");
+    } finally {
+      setIsExporting(false);
       setShowExportModal(false);
+    }
   };
 
   const handleSaveAsDocx = async () => {
@@ -463,7 +580,7 @@ const App: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `voiceink-chat-${new Date().toISOString()}.docx`;
+      a.download = `${sanitizeFileName(sessionName)}.docx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -500,6 +617,14 @@ const App: React.FC = () => {
     }
   };
 
+  const handleLoadSession = (session: Session) => {
+    resetMessages(session.messages);
+    setSettings(session.settings);
+    setSessionName(session.name);
+    setShowHistoryModal(false);
+    stopTranscriptionSession();
+  };
+
   useEffect(() => {
     const body = document.body;
     body.className = '';
@@ -513,86 +638,107 @@ const App: React.FC = () => {
         onExport={() => setShowExportModal(true)} 
         onClear={handleClear} 
         onSettings={() => setShowSettingsModal(true)}
+        onHistoryClick={() => setShowHistoryModal(true)}
         onUndo={undo}
         onRedo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
         lang={lang}
       />
-      <audio ref={streamAudioRef} muted autoPlay playsInline className="hidden"></audio>
-      <audio ref={fileAudioRef} onEnded={stopTranscriptionSession} className="hidden"></audio>
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleFileSelected} 
-        accept="audio/*" 
-        className="hidden" 
+      {(isRecording || sessionName) && (
+        <SessionBar sessionName={sessionName} />
+      )}
+      <ChatWindow 
+        ref={chatWindowRef}
+        messages={messages} 
+        interimTranscript={interimTranscript} 
+        currentSpeaker={currentSpeaker} 
+        isRecording={isRecording}
+        isPaused={isPaused}
+        isTranscribingFile={isTranscribingFile}
+        settings={settings}
+        onUpdateMessage={handleUpdateMessage}
+        onChangeSpeaker={handleChangeSpeaker}
+        onDeleteMessage={handleDeleteMessage}
+        lang={lang}
       />
 
-      <main className="flex-grow flex flex-col min-h-0">
-        <ChatWindow
-            messages={messages}
-            interimTranscript={interimTranscript}
-            currentSpeaker={currentSpeaker}
-            isRecording={isRecording}
-            isTranscribingFile={isTranscribingFile}
-            settings={settings}
-            onUpdateMessage={handleUpdateMessage}
-            onChangeSpeaker={handleChangeSpeaker}
-            onSplitMessage={handleSplitMessage}
-            onDeleteMessage={handleDeleteMessage}
-            lang={lang}
-        />
-        <TranscriptionControls
-            isRecording={isRecording}
-            isPaused={isPaused}
-            isPushToTalkActive={isPushToTalkActive}
-            isTranscribingFile={isTranscribingFile}
-            onStartStopClick={handleStartStopClick}
-            onPause={handlePause}
-            onMicToggle={handleMicToggle}
-            lang={lang}
-        />
-      </main>
-
-       {showExportModal && (
-        <ExportModal
-          onClose={() => setShowExportModal(false)}
-          onSaveAsTxt={handleSaveAsTxt}
-          onSaveAsPdf={handleSaveAsPdf}
-          onSaveAsDocx={handleSaveAsDocx}
-          onCopyToClipboard={handleCopyToClipboard}
-          onSendToApp={handleSendToApp}
-          lang={lang}
-        />
-      )}
-      {showSettingsModal && (
-        <SettingsModal
+      {selectionContext && (
+        <ContextualActionBar
           settings={settings}
-          onClose={() => setShowSettingsModal(false)}
-          onSave={(newSettings) => {
-            setSettings(newSettings);
-            setShowSettingsModal(false);
-          }}
+          selectionContext={selectionContext}
+          onSplit={handleSplitMessage}
+          onClear={() => setSelectionContext(null)}
           lang={lang}
         />
       )}
-      {showSourceModal && (
-        <SourceSelectionModal
-          onClose={() => setShowSourceModal(false)}
-          onSelectSource={handleSourceSelected}
-          onFileSelectClick={handleFileSelectClick}
-          lang={lang}
-        />
-      )}
-      {showFileInstructionsModal && audioFile && (
-        <FileInstructionsModal
-          fileName={audioFile.name}
-          onClose={handleCancelFileTranscriptionFlow}
-          onConfirm={handleStartFileTranscriptionFlow}
-          lang={lang}
-        />
-      )}
+      
+      <TranscriptionControls 
+        isRecording={isRecording}
+        isPaused={isPaused}
+        isPushToTalkActive={isPushToTalkActive}
+        isTranscribingFile={isTranscribingFile}
+        onStartClick={handleStartClick}
+        onStopClick={handleStopClick}
+        onPauseClick={handlePauseClick}
+        onMicToggle={handleMicToggle}
+        lang={lang}
+      />
+      {showExportModal && <ExportModal 
+        onClose={() => setShowExportModal(false)}
+        onSaveAsTxt={handleSaveAsTxt}
+        onSaveAsPdf={handleSaveAsPdf}
+        onSaveAsPng={handleSaveAsPng}
+        onSaveAsDocx={handleSaveAsDocx}
+        onCopyToClipboard={handleCopyToClipboard}
+        onSendToApp={handleSendToApp}
+        isExporting={isExporting}
+        lang={lang}
+      />}
+      {showSettingsModal && <SettingsModal 
+        settings={settings}
+        onClose={() => setShowSettingsModal(false)}
+        onSave={(newSettings) => {
+          setSettings(newSettings);
+          setShowSettingsModal(false);
+        }}
+        lang={lang}
+      />}
+      {showSessionNameModal && <SessionNameModal 
+        onClose={() => setShowSessionNameModal(false)}
+        onConfirm={handleSessionNameConfirmed}
+        lang={lang}
+      />}
+      {showSourceModal && <SourceSelectionModal 
+        onClose={() => setShowSourceModal(false)}
+        onSelectSource={handleSourceSelected}
+        onFileSelectClick={handleFileSelectClick}
+        lang={lang}
+      />}
+      {showFileInstructionsModal && audioFile && <FileInstructionsModal
+        fileName={audioFile.name}
+        onClose={handleCancelFileTranscriptionFlow}
+        onConfirm={handleStartFileTranscriptionFlow}
+        lang={lang}
+      />}
+      {showHistoryModal && <HistoryModal
+        sessions={sessions}
+        onClose={() => setShowHistoryModal(false)}
+        onLoad={handleLoadSession}
+        onDelete={deleteSession}
+        lang={lang}
+      />}
+
+      {/* Hidden elements for functionality */}
+      <audio ref={streamAudioRef} playsInline muted />
+      <audio ref={fileAudioRef} onEnded={stopTranscriptionSession} />
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelected}
+        accept="audio/*"
+        style={{ display: 'none' }}
+      />
     </div>
   );
 };

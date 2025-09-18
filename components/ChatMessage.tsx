@@ -10,22 +10,18 @@ interface ChatMessageProps {
   settings: Settings;
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
-  onSplitMessage: (id: string, selectedText: string, newSpeaker: 'user' | 'interlocutor') => void;
   onDeleteMessage: (id: string) => void;
   isFirstMessage: boolean;
   lang: Language;
 }
 
-const ChatMessageComponent: React.FC<ChatMessageProps> = ({ message, settings, onUpdateMessage, onChangeSpeaker, onSplitMessage, onDeleteMessage, isFirstMessage, lang }) => {
+const ChatMessageComponent: React.FC<ChatMessageProps> = ({ message, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, isFirstMessage, lang }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
-  const [selectedText, setSelectedText] = useState<string | null>(null);
-  const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
   const [editWidth, setEditWidth] = useState<number | null>(null);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
-  const textContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -35,21 +31,6 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({ message, settings, o
       textareaRef.current.focus();
     }
   }, [isEditing, editText]);
-  
-  // Close selection popup if user clicks away
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-        if (selectedText && bubbleRef.current && !bubbleRef.current.contains(event.target as Node)) {
-            setSelectedText(null);
-            setPopupPosition(null);
-        }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [selectedText]);
-
 
   const handleEdit = () => {
     if (bubbleRef.current) {
@@ -80,40 +61,6 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({ message, settings, o
     if (e.key === 'Escape') {
         handleCancel();
     }
-  };
-  
-  const handleMouseUp = () => {
-    if (isEditing) return;
-    const selection = window.getSelection();
-    const selectedString = selection?.toString().trim();
-
-    // Check if the selection is contained within the message text element
-    if (selectedString && selection && textContainerRef.current?.contains(selection.anchorNode)) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      const containerRect = textContainerRef.current.getBoundingClientRect();
-      
-      setSelectedText(selectedString);
-      setPopupPosition({
-        top: rect.top - containerRect.top - 45, // Position 45px above the selection
-        left: rect.left - containerRect.left + (rect.width / 2),
-      });
-    } else {
-      // Only clear selection if we are not clicking on an action button
-      const target = event?.target as HTMLElement;
-      if (!target.closest('.split-popup-button') && !target.closest('.control-button')) {
-         setSelectedText(null);
-         setPopupPosition(null);
-      }
-    }
-  };
-  
-  const handleSplit = (newSpeaker: 'user' | 'interlocutor') => {
-    if (selectedText) {
-      onSplitMessage(message.id, selectedText, newSpeaker);
-    }
-    setSelectedText(null);
-    setPopupPosition(null);
   };
 
   const isUser = message.sender === 'user';
@@ -155,38 +102,12 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({ message, settings, o
             </div>
           </div>
         ) : (
-           <div onMouseUp={handleMouseUp} ref={textContainerRef}>
+           <div data-message-id={message.id}>
               {message.text || <span className="text-[var(--text-secondary)] italic">...</span>}
           </div>
         )}
 
-        {selectedText && popupPosition && (
-          <div
-            className="absolute z-20 flex gap-2 bg-[var(--bg-surface)] p-1 rounded-full shadow-lg"
-            style={{
-              top: `${popupPosition.top}px`,
-              left: `${popupPosition.left}px`,
-              transform: 'translateX(-50%)',
-            }}
-          >
-            <button
-              onClick={() => handleSplit('user')}
-              className={`split-popup-button w-8 h-8 rounded-full ${settings.user.avatarColor} flex items-center justify-center font-bold text-slate-300 transition-transform hover:scale-110`}
-              title={`${t('splitInto', lang)} ${t('you', lang)} (${settings.user.initial})`}
-            >
-              {settings.user.initial}
-            </button>
-            <button
-              onClick={() => handleSplit('interlocutor')}
-              className={`split-popup-button w-8 h-8 rounded-full ${settings.interlocutor.avatarColor} flex items-center justify-center font-bold text-slate-300 transition-transform hover:scale-110`}
-               title={`${t('splitInto', lang)} ${t('speaker', lang)} (${settings.interlocutor.initial})`}
-            >
-              {settings.interlocutor.initial}
-            </button>
-          </div>
-        )}
-
-         {!isEditing && message.text && (
+         {!isEditing && message.text && !isFirstMessage && (
             <button 
                 onClick={() => onDeleteMessage(message.id)} 
                 className="absolute top-1 right-1 p-0.5 rounded-full bg-black/20 text-white/60 hover:text-white/100 hover:bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity control-button"

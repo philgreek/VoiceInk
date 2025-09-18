@@ -1,5 +1,6 @@
 
 
+
 export const translations = {
   en: {
     voiceInk: 'VoiceInk',
@@ -9,11 +10,15 @@ export const translations = {
     start: 'Start',
     resume: 'Resume',
     stop: 'Stop',
+    pause: 'Pause',
     toggleUserMic: 'Toggle microphone for your speech',
     saveAsTxt: 'Save as Text (.txt)',
     saveAsTxtDescription: 'A simple, unformatted text file.',
-    saveAsPdf: 'Save as PDF (.pdf)',
-    saveAsPdfDescription: 'A formatted document preserving the chat layout.',
+    saveScreenshotPdf: 'Save Screenshot as PDF',
+    saveScreenshotPdfDescription: 'A high-fidelity PDF preserving the exact look.',
+    saveAsPng: 'Save as Image (.png)',
+    saveAsPngDescription: 'A single image file of the entire chat.',
+    exportingPdf: 'Exporting...',
     saveAsDocx: 'Save as Word (.docx)',
     saveAsDocxDescription: 'An editable document for Word or Google Docs.',
     copyToClipboard: 'Copy to clipboard',
@@ -47,7 +52,7 @@ export const translations = {
     pressStartToBegin: 'Press "Start" to begin the conversation.',
     transcribingFile: 'Transcribing audio file...',
     thisMayTakeAMoment: 'This may take a few moments.',
-    clearChatConfirmation: 'Are you sure you want to clear the entire chat?',
+    clearChatConfirmation: 'Are you sure you want to clear the entire chat? This cannot be undone.',
     copySuccess: 'Chat copied to clipboard!',
     copyFail: 'Failed to copy chat.',
     shareFail: 'Share feature is not supported in your browser. Try copying to clipboard instead.',
@@ -64,6 +69,15 @@ export const translations = {
     undo: "Undo last action",
     redo: "Redo last action",
     saveToFile: "Save to File",
+    splitAs: "Split as:",
+    sessionNameTitle: 'Session Name',
+    sessionNamePlaceholder: 'e.g., Project Kick-off Meeting',
+    sessionNameDefault: 'Session',
+    sessionHistory: 'Session History',
+    loadSession: 'Load Session',
+    deleteSession: 'Delete Session',
+    deleteSessionConfirmation: 'Are you sure you want to delete the session "{sessionName}"? This action cannot be undone.',
+    noSessionsFound: 'No saved sessions found. Your completed sessions will appear here.',
   },
   ru: {
     voiceInk: 'VoiceInk',
@@ -73,11 +87,15 @@ export const translations = {
     start: 'Старт',
     resume: 'Продолжить',
     stop: 'Стоп',
+    pause: 'Пауза',
     toggleUserMic: 'Включить/выключить микрофон для вашей речи',
     saveAsTxt: 'Сохранить как Текст (.txt)',
     saveAsTxtDescription: 'Простой, неформатированный текстовый файл.',
-    saveAsPdf: 'Сохранить как PDF (.pdf)',
-    saveAsPdfDescription: 'Форматированный документ, сохраняющий вид чата.',
+    saveScreenshotPdf: 'Сохранить снимок как PDF',
+    saveScreenshotPdfDescription: 'PDF-файл высокой точности, сохраняющий внешний вид.',
+    saveAsPng: 'Сохранить как изображение (.png)',
+    saveAsPngDescription: 'Один файл-изображение всего чата.',
+    exportingPdf: 'Экспорт...',
     saveAsDocx: 'Сохранить как Word (.docx)',
     saveAsDocxDescription: 'Редактируемый документ для Word или Google Docs.',
     copyToClipboard: 'Копировать в буфер',
@@ -111,7 +129,7 @@ export const translations = {
     pressStartToBegin: 'Нажмите "Старт", чтобы начать разговор.',
     transcribingFile: 'Транскрибация аудиофайла...',
     thisMayTakeAMoment: 'Это может занять некоторое время.',
-    clearChatConfirmation: 'Вы уверены, что хотите полностью очистить чат?',
+    clearChatConfirmation: 'Вы уверены, что хотите полностью очистить чат? Это действие необратимо.',
     copySuccess: 'Чат скопирован в буфер обмена!',
     copyFail: 'Не удалось скопировать чат.',
     shareFail: 'Функция "Поделиться" не поддерживается в вашем браузере. Попробуйте скопировать в буфер обмена.',
@@ -128,6 +146,15 @@ export const translations = {
     undo: "Отменить последнее действие",
     redo: "Повторить последнее действие",
     saveToFile: "Сохранить в файл",
+    splitAs: "Разделить как:",
+    sessionNameTitle: 'Название сессии',
+    sessionNamePlaceholder: 'Например, Стартовое совещание по проекту',
+    sessionNameDefault: 'Сессия',
+    sessionHistory: 'История сессий',
+    loadSession: 'Загрузить сессию',
+    deleteSession: 'Удалить сессию',
+    deleteSessionConfirmation: 'Вы уверены, что хотите удалить сессию "{sessionName}"? Это действие необратимо.',
+    noSessionsFound: 'Сохраненных сессий не найдено. Ваши завершенные сессии появятся здесь.',
   },
   es: {
     voiceInk: 'VoiceInk',
@@ -137,11 +164,15 @@ export const translations = {
     start: 'Iniciar',
     resume: 'Reanudar',
     stop: 'Detener',
+    pause: 'Pausa',
     toggleUserMic: 'Activar/desactivar micrófono para su voz',
     saveAsTxt: 'Guardar como Texto (.txt)',
     saveAsTxtDescription: 'Un archivo de texto simple y sin formato.',
-    saveAsPdf: 'Guardar como PDF (.pdf)',
-    saveAsPdfDescription: 'Un documento formateado que conserva el diseño del chat.',
+    saveScreenshotPdf: 'Guardar Captura como PDF',
+    saveScreenshotPdfDescription: 'Un PDF de alta fidelidad que conserva el aspecto exacto.',
+    saveAsPng: 'Guardar como Imagen (.png)',
+    saveAsPngDescription: 'Un único archivo de imagen de todo el chat.',
+    exportingPdf: 'Exportando...',
     saveAsDocx: 'Guardar como Word (.docx)',
     saveAsDocxDescription: 'Un documento editable para Word o Google Docs.',
     copyToClipboard: 'Copiar al portapapeles',
@@ -175,7 +206,7 @@ export const translations = {
     pressStartToBegin: 'Presiona "Iniciar" para comenzar la conversación.',
     transcribingFile: 'Transcribiendo archivo de audio...',
     thisMayTakeAMoment: 'Esto puede tardar unos momentos.',
-    clearChatConfirmation: '¿Estás seguro de que quieres limpiar todo el chat?',
+    clearChatConfirmation: '¿Estás seguro de que quieres limpiar todo el chat? Esta acción no se puede deshacer.',
     copySuccess: '¡Chat copiado al portapapeles!',
     copyFail: 'Error al copiar el chat.',
     shareFail: 'La función de compartir no es compatible con tu navegador. Intenta copiar al portapapeles.',
@@ -192,6 +223,15 @@ export const translations = {
     undo: "Deshacer última acción",
     redo: "Rehacer última acción",
     saveToFile: "Guardar en archivo",
+    splitAs: "Dividir como:",
+    sessionNameTitle: 'Nombre de la Sesión',
+    sessionNamePlaceholder: 'Ej: Reunión de Inicio de Proyecto',
+    sessionNameDefault: 'Sesión',
+    sessionHistory: 'Historial de Sesiones',
+    loadSession: 'Cargar Sesión',
+    deleteSession: 'Eliminar Sesión',
+    deleteSessionConfirmation: '¿Estás seguro de que quieres eliminar la sesión "{sessionName}"? Esta acción no se puede deshacer.',
+    noSessionsFound: 'No se encontraron sesiones guardadas. Tus sesiones completadas aparecerán aquí.',
   },
   fr: {
     voiceInk: 'VoiceInk',
@@ -201,11 +241,15 @@ export const translations = {
     start: 'Démarrer',
     resume: 'Reprendre',
     stop: 'Arrêter',
+    pause: 'Pause',
     toggleUserMic: 'Activer/désactiver le microphone pour votre parole',
     saveAsTxt: 'Enregistrer en Texte (.txt)',
     saveAsTxtDescription: 'Un fichier texte simple et non formaté.',
-    saveAsPdf: 'Enregistrer en PDF (.pdf)',
-    saveAsPdfDescription: 'Un document formaté préservant la mise en page du chat.',
+    saveScreenshotPdf: 'Enregistrer la capture en PDF',
+    saveScreenshotPdfDescription: 'Un PDF haute fidélité préservant l\'apparence exacte.',
+    saveAsPng: 'Enregistrer en image (.png)',
+    saveAsPngDescription: 'Un seul fichier image de tout le chat.',
+    exportingPdf: 'Exportation...',
     saveAsDocx: 'Enregistrer en Word (.docx)',
     saveAsDocxDescription: 'Un document modifiable pour Word ou Google Docs.',
     copyToClipboard: 'Copier dans le presse-papiers',
@@ -239,7 +283,7 @@ export const translations = {
     pressStartToBegin: 'Appuyez sur "Démarrer" pour commencer la conversation.',
     transcribingFile: 'Transcription du fichier audio...',
     thisMayTakeAMoment: 'Cela peut prendre quelques instants.',
-    clearChatConfirmation: 'Êtes-vous sûr de vouloir effacer tout le chat ?',
+    clearChatConfirmation: 'Êtes-vous sûr de vouloir effacer tout le chat ? Cette action est irréversible.',
     copySuccess: 'Chat copié dans le presse-papiers !',
     copyFail: 'Échec de la copie du chat.',
     shareFail: 'La fonction de partage n\'est pas prise en charge par votre navigateur. Essayez de copier dans le presse-papiers.',
@@ -256,6 +300,15 @@ export const translations = {
     undo: "Annuler la dernière action",
     redo: "Refaire la dernière action",
     saveToFile: "Enregistrer dans un fichier",
+    splitAs: "Diviser en tant que :",
+    sessionNameTitle: 'Nom de la session',
+    sessionNamePlaceholder: 'Ex: Réunion de lancement de projet',
+    sessionNameDefault: 'Session',
+    sessionHistory: 'Historique des sessions',
+    loadSession: 'Charger la session',
+    deleteSession: 'Supprimer la session',
+    deleteSessionConfirmation: 'Êtes-vous sûr de vouloir supprimer la session "{sessionName}" ? Cette action est irréversible.',
+    noSessionsFound: 'Aucune session enregistrée trouvée. Vos sessions terminées apparaîtront ici.',
   },
   de: {
     voiceInk: 'VoiceInk',
@@ -265,11 +318,15 @@ export const translations = {
     start: 'Start',
     resume: 'Fortsetzen',
     stop: 'Stopp',
+    pause: 'Pause',
     toggleUserMic: 'Mikrofon für Ihre Sprache ein-/ausschalten',
     saveAsTxt: 'Als Text speichern (.txt)',
     saveAsTxtDescription: 'Eine einfache, unformatierte Textdatei.',
-    saveAsPdf: 'Als PDF speichern (.pdf)',
-    saveAsPdfDescription: 'Ein formatiertes Dokument, das das Chat-Layout beibehält.',
+    saveScreenshotPdf: 'Screenshot als PDF speichern',
+    saveScreenshotPdfDescription: 'Ein originalgetreues PDF, das das genaue Aussehen beibehält.',
+    saveAsPng: 'Als Bild speichern (.png)',
+    saveAsPngDescription: 'Eine einzelne Bilddatei des gesamten Chats.',
+    exportingPdf: 'Exportieren...',
     saveAsDocx: 'Als Word speichern (.docx)',
     saveAsDocxDescription: 'Ein bearbeitbares Dokument für Word oder Google Docs.',
     copyToClipboard: 'In die Zwischenablage kopieren',
@@ -303,7 +360,7 @@ export const translations = {
     pressStartToBegin: 'Drücke "Start", um das Gespräch zu beginnen.',
     transcribingFile: 'Audiodatei wird transkribiert...',
     thisMayTakeAMoment: 'Dies kann einen Moment dauern.',
-    clearChatConfirmation: 'Bist du sicher, dass du den gesamten Chat leeren möchtest?',
+    clearChatConfirmation: 'Bist du sicher, dass du den gesamten Chat leeren möchtest? Diese Aktion kann nicht rückgängig gemacht werden.',
     copySuccess: 'Chat in die Zwischenablage kopiert!',
     copyFail: 'Fehler beim Kopieren des Chats.',
     shareFail: 'Die Teilen-Funktion wird von deinem Browser nicht unterstützt. Versuche stattdessen, in die Zwischenablage zu kopieren.',
@@ -320,6 +377,15 @@ export const translations = {
     undo: "Letzte Aktion rückgängig machen",
     redo: "Letzte Aktion wiederholen",
     saveToFile: "In Datei speichern",
+    splitAs: "Aufteilen als:",
+    sessionNameTitle: 'Sitzungsname',
+    sessionNamePlaceholder: 'z.B. Projekt-Kick-off-Meeting',
+    sessionNameDefault: 'Sitzung',
+    sessionHistory: 'Sitzungsverlauf',
+    loadSession: 'Sitzung laden',
+    deleteSession: 'Sitzung löschen',
+    deleteSessionConfirmation: 'Möchten Sie die Sitzung "{sessionName}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
+    noSessionsFound: 'Keine gespeicherten Sitzungen gefunden. Ihre abgeschlossenen Sitzungen werden hier angezeigt.',
   },
   ja: {
     voiceInk: 'VoiceInk',
@@ -329,11 +395,15 @@ export const translations = {
     start: '開始',
     resume: '再開',
     stop: '停止',
+    pause: '一時停止',
     toggleUserMic: 'あなたの発言のためにマイクを切り替える',
     saveAsTxt: 'テキストとして保存 (.txt)',
     saveAsTxtDescription: '書式なしのシンプルなテキストファイル。',
-    saveAsPdf: 'PDFとして保存 (.pdf)',
-    saveAsPdfDescription: 'チャットのレイアウトを保持した書式付きドキュメント。',
+    saveScreenshotPdf: 'スクリーンショットをPDFで保存',
+    saveScreenshotPdfDescription: '見た目をそのまま保持した高忠実度のPDF。',
+    saveAsPng: '画像として保存 (.png)',
+    saveAsPngDescription: 'チャット全体の単一の画像ファイル。',
+    exportingPdf: 'エクスポート中...',
     saveAsDocx: 'Wordとして保存 (.docx)',
     saveAsDocxDescription: 'WordまたはGoogleドキュメントで編集可能なドキュメント。',
     copyToClipboard: 'クリップボードにコピー',
@@ -367,7 +437,7 @@ export const translations = {
     pressStartToBegin: '「開始」を押して会話を始めてください。',
     transcribingFile: '音声ファイルを文字起こし中...',
     thisMayTakeAMoment: 'これには数分かかることがあります。',
-    clearChatConfirmation: '本当にチャット全体を消去しますか？',
+    clearChatConfirmation: '本当にチャット全体を消去しますか？この操作は元に戻せません。',
     copySuccess: 'チャットをクリップボードにコピーしました！',
     copyFail: 'チャットのコピーに失敗しました。',
     shareFail: 'お使いのブラウザは共有機能をサポートしていません。代わりにクリップボードにコピーしてみてください。',
@@ -384,6 +454,15 @@ export const translations = {
     undo: "元に戻す",
     redo: "やり直す",
     saveToFile: "ファイルに保存",
+    splitAs: "分割して作成:",
+    sessionNameTitle: 'セッション名',
+    sessionNamePlaceholder: '例：プロジェクトキックオフ会議',
+    sessionNameDefault: 'セッション',
+    sessionHistory: 'セッション履歴',
+    loadSession: 'セッションを読み込む',
+    deleteSession: 'セッションを削除',
+    deleteSessionConfirmation: '本当にセッション「{sessionName}」を削除しますか？この操作は元に戻せません。',
+    noSessionsFound: '保存されたセッションが見つかりません。完了したセッションはここに表示されます。',
   },
   zh: {
     voiceInk: 'VoiceInk',
@@ -393,16 +472,20 @@ export const translations = {
     start: '开始',
     resume: '继续',
     stop: '停止',
+    pause: '暂停',
     toggleUserMic: '切换麦克风以录制您的语音',
     saveAsTxt: '保存为文本 (.txt)',
     saveAsTxtDescription: '一个简单的、无格式的文本文件。',
-    saveAsPdf: '保存为PDF (.pdf)',
-    saveAsPdfDescription: '保留聊天布局的格式化文档。',
+    saveScreenshotPdf: '将截图保存为PDF',
+    saveScreenshotPdfDescription: '保留确切外观的高保真PDF。',
+    saveAsPng: '保存为图片 (.png)',
+    saveAsPngDescription: '整个聊天的单个图像文件。',
+    exportingPdf: '正在导出...',
     saveAsDocx: '保存为Word (.docx)',
-    saveAsDocxDescription: '可在Word或Google文档中编辑的文档。',
+    saveAsDocxDescription: '可在Word或谷歌文档中编辑的文档。',
     copyToClipboard: '复制到剪贴板',
     copyToClipboardDescription: '将整个对话复制到剪贴板。',
-    sendToApp: '发送到应用',
+    sendToApp: '发送到应用程序',
     sendToAppDescription: '使用您设备的分享功能。',
     you: '您',
     speaker: '对方',
@@ -410,100 +493,97 @@ export const translations = {
     color: '颜色',
     saveChanges: '保存更改',
     cancel: '取消',
-    chooseAudioSource: '选择音频来源',
+    chooseAudioSource: '选择音频源',
     microphone: '麦克风',
     microphoneDescription: '从您的麦克风转录音频。',
     computerAudio: '电脑音频',
-    computerAudioDescription: '转录浏览器标签页、窗口或屏幕的音频。',
+    computerAudioDescription: '转录浏览器标签、窗口或屏幕的音频。',
     uploadAudioFile: '上传音频文件',
-    uploadAudioFileDescription: '转录一个预先录制的音频文件。',
-    sourceSelectionNote: '对于电脑音频或文件上传，请记得分享正确的标签页/屏幕并启用音频。',
-    instructions: '操作说明',
-    fileInstructionP1: '为了转录音频文件{fileName}，本应用需要能“听到”它。',
-    fileInstructionP2: '在下一步中，您的浏览器会要求您分享屏幕。请仔细按照以下步骤操作：',
-    fileInstructionL1: '当提示出现时，请选择“Chrome标签页”（或类似选项）。',
+    uploadAudioFileDescription: '转录预先录制的音频文件。',
+    sourceSelectionNote: '对于电脑音频或文件上传，请记得共享正确的标签页/屏幕并启用音频。',
+    instructions: '说明',
+    fileInstructionP1: '要转录音频文件{fileName}，应用程序需要“听到”它。',
+    fileInstructionP2: '在下一步中，您的浏览器会要求您共享屏幕。请仔细按照以下步骤操作：',
+    fileInstructionL1: '当提示出现时，选择“Chrome标签页”（或等效选项）。',
     fileInstructionL2: '从列表中选择当前的VoiceInk标签页。',
-    fileInstructionL3: '<strong>重要提示：</strong>请确保提示左下角的“分享标签页音频”复选框已<strong>勾选</strong>。',
-    fileInstructionNote: '这允许应用捕获您文件中播放的音频，而无需使用您的麦克风。视频不会被录制。',
+    fileInstructionL3: '<strong>重要：</strong>确保提示左下角的“分享标签页音频”复选框已<strong>勾选</strong>。',
+    fileInstructionNote: '这允许应用程序捕获从您的文件播放的音频，而无需使用您的麦克风。不会录制视频。',
     continue: '继续',
     close: '关闭',
     readyToTranscribe: '准备转录',
     pressStartToBegin: '按“开始”以开始对话。',
     transcribingFile: '正在转录音频文件...',
     thisMayTakeAMoment: '这可能需要一些时间。',
-    clearChatConfirmation: '您确定要清空整个聊天记录吗？',
-    copySuccess: '聊天记录已复制到剪贴板！',
-    copyFail: '复制聊天记录失败。',
+    clearChatConfirmation: '您确定要清空整个聊天吗？此操作无法撤销。',
+    copySuccess: '聊天已复制到剪贴板！',
+    copyFail: '复制聊天失败。',
     shareFail: '您的浏览器不支持分享功能。请尝试复制到剪贴板。',
-    noAudioTrackError: "未找到音轨。请确保您已勾选“分享系统音频”或“分享标签页音频”。",
-    screenShareError: "无法开始屏幕共享。请授予所需权限。",
-    audioTrackNotSharedError: "未分享音轨。请重试并为此标签页启用音频分享。",
-    interface: "界面",
-    theme: "主题",
-    language: "语言",
-    changeSpeaker: "切换说话人",
-    editMessage: "编辑消息",
-    splitInto: "拆分为新消息给",
-    deleteMessage: "删除消息并与上一条合并",
-    undo: "撤销上次操作",
-    redo: "重做上次操作",
-    saveToFile: "保存到文件",
+    noAudioTrackError: '未找到音轨。请确保您已勾选“分享系统音频”或“分享标签页音频”。',
+    screenShareError: '无法开始屏幕共享。请授予所需权限。',
+    audioTrackNotSharedError: '未共享音轨。请重试并为此标签页启用音频共享。',
+    interface: '界面',
+    theme: '主题',
+    language: '语言',
+    changeSpeaker: '更换发言人',
+    editMessage: '编辑消息',
+    splitInto: '拆分为新消息给',
+    deleteMessage: '删除消息并与上一条合并',
+    undo: '撤销上次操作',
+    redo: '重做上次操作',
+    saveToFile: '保存到文件',
+    splitAs: '拆分为：',
+    sessionNameTitle: '会话名称',
+    sessionNamePlaceholder: '例如：项目启动会议',
+    sessionNameDefault: '会话',
+    sessionHistory: '会话历史',
+    loadSession: '加载会话',
+    deleteSession: '删除会话',
+    deleteSessionConfirmation: '您确定要删除会话“{sessionName}”吗？此操作无法撤销。',
+    noSessionsFound: '未找到已保存的会话。您完成的会话将显示在此处。',
   },
 };
 
 export type Language = keyof typeof translations;
-export type TranslationKey = keyof typeof translations['en'];
 
 export const availableLanguages: { code: Language; name: string }[] = [
-    { code: 'en', name: 'English' },
-    { code: 'ru', name: 'Русский' },
-    { code: 'es', name: 'Español' },
-    { code: 'fr', name: 'Français' },
-    { code: 'de', name: 'Deutsch' },
-    { code: 'ja', name: '日本語' },
-    { code: 'zh', name: '中文' },
+  { code: 'en', name: 'English' },
+  { code: 'ru', name: 'Русский' },
+  { code: 'es', name: 'Español' },
+  { code: 'fr', name: 'Français' },
+  { code: 'de', name: 'Deutsch' },
+  { code: 'ja', name: '日本語' },
+  { code: 'zh', name: '中文' },
 ];
 
-// Map app language codes to speech recognition lang codes
-export const langToCode = (lang: string): string => {
-    const map: { [key: string]: string } = {
-        'en': 'en-US',
-        'ru': 'ru-RU',
-        'es': 'es-ES',
-        'fr': 'fr-FR',
-        'de': 'de-DE',
-        'ja': 'ja-JP',
-        'zh': 'zh-CN',
-    };
-    return map[lang] || 'en-US';
-}
+export function t(key: keyof (typeof translations)['en'], lang: Language, options: Record<string, any> = {}): string {
+  let translation = translations[lang]?.[key] || translations.en[key];
 
-function insertPlaceholders(text: string, placeholders: { [key: string]: any }): any {
-  if (!placeholders) return text;
-  
-  const parts = text.split(/(\{[^}]+\})/g);
-  
-  return parts.map((part, index) => {
-    if (part.startsWith('{') && part.endsWith('}')) {
-      const key = part.slice(1, -1);
-      return placeholders[key] !== undefined ? placeholders[key] : part;
-    }
-    return part;
-  });
-}
-
-export const t = (key: TranslationKey, lang: Language, placeholders?: { [key: string]: any }): any => {
-  const langDict = translations[lang] || translations.en;
-  let text = langDict[key] || translations.en[key] || key;
-
-  if (typeof text === 'string' && placeholders) {
-      if (key === 'fileInstructionL1' || key === 'fileInstructionL2' || key === 'fileInstructionL3') {
-           if (placeholders.strong) {
-               text = text.replace(/<strong class="text-\[var\(--text-primary\)\]">(.+?)<\/strong>/g, (match, p1) => placeholders.strong(p1));
-           }
+  if (typeof translation === 'string') {
+      Object.keys(options).forEach(optionKey => {
+        const value = options[optionKey];
+        // Handle simple string replacements for placeholders like {fileName}
+        if(typeof value === 'string') {
+            translation = translation.replace(`{${optionKey}}`, value);
+        }
+      });
+      // This is a special case for rich text in translations
+      if (options.strong && typeof options.strong === 'function') {
+        translation = options.strong(translation);
       }
-      return insertPlaceholders(text, placeholders);
   }
 
-  return text;
+  return translation;
+}
+
+export const langToCode = (lang: string): string => {
+  const map: { [key: string]: string } = {
+    en: 'en-US',
+    ru: 'ru-RU',
+    es: 'es-ES',
+    fr: 'fr-FR',
+    de: 'de-DE',
+    ja: 'ja-JP',
+    zh: 'zh-CN',
+  };
+  return map[lang] || 'en-US';
 };
