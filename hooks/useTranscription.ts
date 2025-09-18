@@ -1,5 +1,4 @@
 
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type {
   SpeechRecognition,
@@ -16,13 +15,14 @@ const isSpeechRecognitionSupported = !!SpeechRecognitionAPI;
 
 interface UseTranscriptionProps {
   lang: string;
+  onFinalTranscript: (transcript: string) => void;
 }
 
-export const useTranscription = ({ lang = 'en-US' }: UseTranscriptionProps) => {
+export const useTranscription = ({ lang = 'en-US', onFinalTranscript }: UseTranscriptionProps) => {
   const [isListening, setIsListening] = useState(false);
-  const [finalTranscript, setFinalTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const lastProcessedFinalTranscript = useRef('');
 
   const isListeningRef = useRef(false);
   const manualStopRef = useRef(false);
@@ -53,22 +53,22 @@ export const useTranscription = ({ lang = 'en-US' }: UseTranscriptionProps) => {
       }
       
       setInterimTranscript(interim);
-      if (final) {
-        setFinalTranscript(final.trim());
+
+      const finalTrimmed = final.trim();
+      if (finalTrimmed && finalTrimmed !== lastProcessedFinalTranscript.current) {
+        lastProcessedFinalTranscript.current = finalTrimmed;
+        onFinalTranscript(finalTrimmed);
       }
     };
 
     recognition.onend = () => {
-      // If a restart was queued, execute it now that stopping is complete.
       if (restartQueuedRef.current) {
         restartQueuedRef.current = false;
         if (recognitionRef.current) {
           try {
-            // The intention is to keep listening, so we don't change state, just start the API.
             recognitionRef.current.start();
           } catch (e) {
             console.error("Error on queued restart:", e);
-            // If it fails, fully stop.
             isListeningRef.current = false;
             setIsListening(false);
           }
@@ -117,7 +117,7 @@ export const useTranscription = ({ lang = 'en-US' }: UseTranscriptionProps) => {
         recognitionRef.current.stop();
       }
     };
-  }, []);
+  }, [onFinalTranscript]);
 
   useEffect(() => {
     if (recognitionRef.current) {
@@ -130,7 +130,7 @@ export const useTranscription = ({ lang = 'en-US' }: UseTranscriptionProps) => {
       try {
         manualStopRef.current = false;
         restartQueuedRef.current = false;
-        setFinalTranscript('');
+        lastProcessedFinalTranscript.current = '';
         setInterimTranscript('');
         recognitionRef.current.start();
         setIsListening(true);
@@ -156,14 +156,10 @@ export const useTranscription = ({ lang = 'en-US' }: UseTranscriptionProps) => {
   const restartListening = useCallback(() => {
     if (recognitionRef.current && isListeningRef.current) {
       restartQueuedRef.current = true;
-      // stop() will trigger onend, which will then handle the start() call safely.
+      lastProcessedFinalTranscript.current = '';
       recognitionRef.current.stop();
     }
   }, []);
 
-  const resetFinalTranscript = useCallback(() => {
-    setFinalTranscript('');
-  }, []);
-
-  return { isListening, finalTranscript, interimTranscript, startListening, stopListening, isSpeechRecognitionSupported, resetFinalTranscript, restartListening };
+  return { isListening, interimTranscript, startListening, stopListening, isSpeechRecognitionSupported, restartListening };
 };
