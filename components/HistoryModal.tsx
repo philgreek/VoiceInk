@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { XIcon, DownloadIcon, TrashIcon } from './icons';
+import { XIcon, DownloadIcon, TrashIcon, PlayIcon } from './icons';
 import { t, Language } from '../utils/translations';
 import { Session } from '../types';
 
@@ -52,9 +52,12 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
           ) : (
             sessions.map(session => (
               <div key={session.id} className="bg-[var(--bg-element)] p-3 rounded-lg flex justify-between items-center gap-4">
-                <div className="truncate">
-                  <p className="font-semibold text-[var(--text-primary)] truncate">{session.name}</p>
-                  <p className="text-xs text-[var(--text-secondary)]">{new Date(session.savedAt).toLocaleString()}</p>
+                <div className="truncate flex items-center gap-3">
+                   {session.hasAudio && <PlayIcon className="w-5 h-5 text-[var(--accent-primary)] flex-shrink-0" />}
+                   <div className="truncate">
+                      <p className="font-semibold text-[var(--text-primary)] truncate">{session.name}</p>
+                      <p className="text-xs text-[var(--text-secondary)]">{new Date(session.savedAt).toLocaleString()}</p>
+                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button

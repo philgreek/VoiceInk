@@ -1,6 +1,5 @@
 
 
-
 import React, { useRef, useEffect, forwardRef } from 'react';
 import type { Message, Settings } from '../types';
 import { MicIcon, FileUploadIcon } from './icons';
@@ -19,6 +18,8 @@ interface ChatWindowProps {
   onChangeSpeaker: (id: string) => void;
   onDeleteMessage: (id: string) => void;
   lang: Language;
+  playbackTime: number;
+  onSeekAudio: (time: number) => void;
 }
 
 const MessageList: React.FC<{
@@ -28,21 +29,30 @@ const MessageList: React.FC<{
   onChangeSpeaker: (id: string) => void;
   onDeleteMessage: (id: string) => void;
   lang: Language;
-}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, lang }) => {
+  playbackTime: number;
+  onSeekAudio: (time: number) => void;
+}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, lang, playbackTime, onSeekAudio }) => {
   return (
     <>
-      {messages.map((msg, index) => (
-        <ChatMessage
-          key={msg.id}
-          message={msg}
-          settings={settings}
-          onUpdateMessage={onUpdateMessage}
-          onChangeSpeaker={onChangeSpeaker}
-          onDeleteMessage={onDeleteMessage}
-          lang={lang}
-          isFirstMessage={index === 0}
-        />
-      ))}
+      {messages.map((msg, index) => {
+        const nextMsg = messages[index + 1];
+        const isActive = playbackTime >= msg.timestamp && (!nextMsg || playbackTime < nextMsg.timestamp);
+
+        return (
+            <ChatMessage
+              key={msg.id}
+              message={msg}
+              settings={settings}
+              onUpdateMessage={onUpdateMessage}
+              onChangeSpeaker={onChangeSpeaker}
+              onDeleteMessage={onDeleteMessage}
+              lang={lang}
+              isFirstMessage={index === 0}
+              isActive={isActive}
+              onSeekAudio={onSeekAudio}
+            />
+        );
+      })}
     </>
   );
 });
@@ -50,10 +60,8 @@ const MessageList: React.FC<{
 const InterimBubble: React.FC<{ text: string, sender: 'user' | 'interlocutor', settings: Settings }> = ({ text, sender, settings }) => {
     const isUser = sender === 'user';
     const profile = isUser ? settings.user : settings.interlocutor;
-    const alignment = 'justify-start';
-
     return (
-        <div className={`flex items-end gap-3 ${alignment}`}>
+        <div className="flex items-end gap-3 justify-start">
             <div className={`w-10 h-10 rounded-full ${profile.avatarColor} flex items-center justify-center font-bold text-slate-300 flex-shrink-0`}>
               {profile.initial}
             </div>
@@ -83,12 +91,12 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
     onChangeSpeaker,
     onDeleteMessage,
     lang,
+    playbackTime,
+    onSeekAudio,
 }, ref) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Only auto-scroll when live transcription is active.
-    // This prevents scrolling during edits when recording is stopped or paused.
     if (isRecording && !isPaused) {
       endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
@@ -128,6 +136,8 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
             onChangeSpeaker={onChangeSpeaker}
             onDeleteMessage={onDeleteMessage}
             lang={lang}
+            playbackTime={playbackTime}
+            onSeekAudio={onSeekAudio}
         />
         {interimTranscript && (
           <InterimBubble text={interimTranscript} sender={currentSpeaker} settings={settings} />

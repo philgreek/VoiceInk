@@ -3,7 +3,7 @@
 export interface Message {
   id: string;
   text: string;
-  timestamp: number;
+  timestamp: number; // Seconds from the start of the recording
   sender: 'user' | 'interlocutor';
 }
 
@@ -31,7 +31,13 @@ export interface Session {
   messages: Message[];
   settings: Settings;
   savedAt: string;
+  hasAudio: boolean;
 }
+
+export interface LoadedSession extends Session {
+    audioBlob: Blob | null;
+}
+
 
 // Web Speech API types for TypeScript
 export interface SpeechRecognitionAlternative {

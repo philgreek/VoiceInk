@@ -1,6 +1,5 @@
 
 
-
 export const translations = {
   en: {
     voiceInk: 'VoiceInk',
@@ -78,6 +77,7 @@ export const translations = {
     deleteSession: 'Delete Session',
     deleteSessionConfirmation: 'Are you sure you want to delete the session "{sessionName}"? This action cannot be undone.',
     noSessionsFound: 'No saved sessions found. Your completed sessions will appear here.',
+    playSessionAudio: 'Play session audio',
   },
   ru: {
     voiceInk: 'VoiceInk',
@@ -155,6 +155,7 @@ export const translations = {
     deleteSession: 'Удалить сессию',
     deleteSessionConfirmation: 'Вы уверены, что хотите удалить сессию "{sessionName}"? Это действие необратимо.',
     noSessionsFound: 'Сохраненных сессий не найдено. Ваши завершенные сессии появятся здесь.',
+    playSessionAudio: 'Воспроизвести аудио сессии',
   },
   es: {
     voiceInk: 'VoiceInk',
@@ -232,6 +233,7 @@ export const translations = {
     deleteSession: 'Eliminar Sesión',
     deleteSessionConfirmation: '¿Estás seguro de que quieres eliminar la sesión "{sessionName}"? Esta acción no se puede deshacer.',
     noSessionsFound: 'No se encontraron sesiones guardadas. Tus sesiones completadas aparecerán aquí.',
+    playSessionAudio: 'Reproducir audio de la sesión',
   },
   fr: {
     voiceInk: 'VoiceInk',
@@ -309,6 +311,7 @@ export const translations = {
     deleteSession: 'Supprimer la session',
     deleteSessionConfirmation: 'Êtes-vous sûr de vouloir supprimer la session "{sessionName}" ? Cette action est irréversible.',
     noSessionsFound: 'Aucune session enregistrée trouvée. Vos sessions terminées apparaîtront ici.',
+    playSessionAudio: 'Lire l\'audio de la session',
   },
   de: {
     voiceInk: 'VoiceInk',
@@ -386,6 +389,7 @@ export const translations = {
     deleteSession: 'Sitzung löschen',
     deleteSessionConfirmation: 'Möchten Sie die Sitzung "{sessionName}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
     noSessionsFound: 'Keine gespeicherten Sitzungen gefunden. Ihre abgeschlossenen Sitzungen werden hier angezeigt.',
+    playSessionAudio: 'Sitzungs-Audio abspielen',
   },
   ja: {
     voiceInk: 'VoiceInk',
@@ -463,6 +467,7 @@ export const translations = {
     deleteSession: 'セッションを削除',
     deleteSessionConfirmation: '本当にセッション「{sessionName}」を削除しますか？この操作は元に戻せません。',
     noSessionsFound: '保存されたセッションが見つかりません。完了したセッションはここに表示されます。',
+    playSessionAudio: 'セッションの音声を再生',
   },
   zh: {
     voiceInk: 'VoiceInk',
@@ -507,7 +512,7 @@ export const translations = {
     fileInstructionL1: '当提示出现时，选择“Chrome标签页”（或等效选项）。',
     fileInstructionL2: '从列表中选择当前的VoiceInk标签页。',
     fileInstructionL3: '<strong>重要：</strong>确保提示左下角的“分享标签页音频”复选框已<strong>勾选</strong>。',
-    fileInstructionNote: '这允许应用程序捕获从您的文件播放的音频，而无需使用您的麦克风。不会录制视频。',
+    fileInstructionNote: '这允许应用程序捕获从您的文件播放的音频，而无需使用您的麦克風。不会录制视频。',
     continue: '继续',
     close: '关闭',
     readyToTranscribe: '准备转录',
@@ -540,6 +545,7 @@ export const translations = {
     deleteSession: '删除会话',
     deleteSessionConfirmation: '您确定要删除会话“{sessionName}”吗？此操作无法撤销。',
     noSessionsFound: '未找到已保存的会话。您完成的会话将显示在此处。',
+    playSessionAudio: '播放会话音频',
   },
 };
 
@@ -561,12 +567,10 @@ export function t(key: keyof (typeof translations)['en'], lang: Language, option
   if (typeof translation === 'string') {
       Object.keys(options).forEach(optionKey => {
         const value = options[optionKey];
-        // Handle simple string replacements for placeholders like {fileName}
         if(typeof value === 'string') {
             translation = translation.replace(`{${optionKey}}`, value);
         }
       });
-      // This is a special case for rich text in translations
       if (options.strong && typeof options.strong === 'function') {
         translation = options.strong(translation);
       }

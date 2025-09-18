@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-import { Message, Session, Settings, SelectionContext } from './types';
+import { Message, Session, Settings, SelectionContext, LoadedSession } from './types';
 import { Header } from './components/Header';
 import { SessionBar } from './components/SessionBar';
 import { ChatWindow } from './components/ChatWindow';
@@ -20,6 +20,7 @@ import jsPDF from 'jspdf';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { ContextualActionBar } from './components/ContextualActionBar';
 import html2canvas from 'html2canvas';
+import { AudioPlayer } from './components/AudioPlayer';
 
 const defaultSettings: Settings = {
   user: {
@@ -59,17 +60,21 @@ const App: React.FC = () => {
   const [showSessionNameModal, setShowSessionNameModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [sessionName, setSessionName] = useState('');
+  const [loadedSession, setLoadedSession] = useState<LoadedSession | null>(null);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [playbackTime, setPlaybackTime] = useState(0);
 
-  const { sessions, saveSession, deleteSession } = useSessionHistory();
+  const { sessions, saveSession, deleteSession, getSessionAudio } = useSessionHistory();
 
   const streamAudioRef = useRef<HTMLAudioElement>(null);
   const fileAudioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatWindowRef = useRef<HTMLDivElement>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement>(null);
+  const recordingStartTimeRef = useRef<number>(0);
   
   const [settings, setSettings] = useState<Settings>(() => {
     try {
@@ -82,13 +87,20 @@ const App: React.FC = () => {
   });
 
   const lang = settings.language as Language;
+  
+  const handleRecordingComplete = (audioBlob: Blob | null) => {
+    if (messages.length > 0 && sessionName && audioBlob) {
+        saveSession({ name: sessionName, messages, settings, hasAudio: true }, audioBlob);
+    } else if (messages.length > 0 && sessionName) {
+        saveSession({ name: sessionName, messages, settings, hasAudio: false }, null);
+    }
+  };
 
   const handleFinalTranscript = useCallback((transcript: string) => {
     if (!transcript) return;
     
     setMessages(currentMessages => produce(currentMessages, draft => {
       const lastMessage = draft.length > 0 ? draft[draft.length - 1] : null;
-      // Use a ref for currentSpeaker to avoid stale closures in the callback
       const speaker = isPushToTalkActive ? 'user' : 'interlocutor';
 
       if (lastMessage && lastMessage.sender === speaker) {
@@ -97,7 +109,7 @@ const App: React.FC = () => {
         draft.push({
           id: `msg-${Date.now()}`,
           text: transcript,
-          timestamp: Date.now(),
+          timestamp: (Date.now() - recordingStartTimeRef.current) / 1000,
           sender: speaker,
         });
       }
@@ -107,6 +119,8 @@ const App: React.FC = () => {
   const { startListening, stopListening, interimTranscript, restartListening } = useTranscription({ 
     lang,
     onFinalTranscript: handleFinalTranscript,
+    onRecordingComplete: handleRecordingComplete,
+    mediaStream,
   });
 
 
@@ -118,7 +132,6 @@ const App: React.FC = () => {
     }
   }, [settings]);
 
-    // Global listener for text selection to show the contextual action bar.
     useEffect(() => {
         const handleSelectionChange = () => {
             const selection = window.getSelection();
@@ -136,7 +149,6 @@ const App: React.FC = () => {
                     }
                 }
             }
-            // If no valid selection, clear the context
             setSelectionContext(null);
         };
 
@@ -146,7 +158,6 @@ const App: React.FC = () => {
         };
     }, []);
 
-  // Centralized control for speech recognition
   useEffect(() => {
     if (isRecording && !isPaused) {
       startListening();
@@ -155,12 +166,11 @@ const App: React.FC = () => {
     }
   }, [isRecording, isPaused, startListening, stopListening]);
   
-  // Prevent accidental page reload during an active session
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (isRecording) {
         event.preventDefault();
-        event.returnValue = ''; // Required for Chrome and other browsers
+        event.returnValue = ''; 
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -193,11 +203,9 @@ const App: React.FC = () => {
   }, [stopMediaStream]);
 
  const handleStopClick = () => {
-    if (messages.length > 0 && sessionName) {
-      saveSession({ name: sessionName, messages, settings });
-    }
     stopTranscriptionSession();
     setSessionName('');
+    setLoadedSession(null);
   };
 
   const startRecordingFlow = () => {
@@ -205,52 +213,45 @@ const App: React.FC = () => {
     setIsPaused(false);
     setCurrentSpeaker('interlocutor');
     setIsPushToTalkActive(false);
+    recordingStartTimeRef.current = Date.now();
   };
 
   const handleSessionNameConfirmed = (name: string) => {
     setSessionName(name);
-    resetMessages([]); // Start with a clean slate for a new session
+    resetMessages([]);
+    setLoadedSession(null);
     setShowSessionNameModal(false);
     setShowSourceModal(true);
   };
   
   const handleSourceSelected = async (source: 'microphone' | 'display') => {
       setShowSourceModal(false);
-      if (source === 'microphone') {
-          startRecordingFlow();
-      } else {
-          try {
-              const stream = await navigator.mediaDevices.getDisplayMedia({
-                  video: true,
-                  audio: {
-                      echoCancellation: false,
-                      noiseSuppression: false,
-                      autoGainControl: false,
-                  },
-              });
+      const constraints = source === 'microphone' 
+        ? { audio: true } 
+        : { video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } };
+      
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if(source === 'display') {
+            const audioTrack = stream.getAudioTracks()[0];
+             if (!audioTrack) {
+                alert(t('noAudioTrackError', lang));
+                stream.getTracks().forEach(track => track.stop());
+                return;
+            }
+             audioTrack.onended = () => stopTranscriptionSession();
+        }
 
-              const audioTrack = stream.getAudioTracks()[0];
-              if (!audioTrack) {
-                  alert(t('noAudioTrackError', lang));
-                  stream.getTracks().forEach(track => track.stop());
-                  return;
-              }
-              
-              audioTrack.onended = () => {
-                  stopTranscriptionSession();
-              };
-
-              setMediaStream(stream);
-              if (streamAudioRef.current) {
-                streamAudioRef.current.srcObject = stream;
-              }
-              startRecordingFlow();
-          } catch (err) {
-              console.error("Error starting display media:", err);
-              if ((err as DOMException).name !== 'NotAllowedError') {
-                 alert(t('screenShareError', lang));
-              }
-          }
+        setMediaStream(stream);
+        if (streamAudioRef.current) {
+            streamAudioRef.current.srcObject = stream;
+        }
+        startRecordingFlow();
+      } catch (err) {
+        console.error(`Error starting ${source} media:`, err);
+        if ((err as DOMException).name !== 'NotAllowedError') {
+           alert(t('screenShareError', lang));
+        }
       }
   };
 
@@ -286,11 +287,7 @@ const App: React.FC = () => {
     try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
             video: true,
-            audio: {
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false,
-            },
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
         });
 
         const audioTrack = stream.getAudioTracks()[0];
@@ -301,10 +298,7 @@ const App: React.FC = () => {
             return;
         }
 
-        audioTrack.onended = () => {
-            stopTranscriptionSession();
-        };
-
+        audioTrack.onended = () => stopTranscriptionSession();
         setMediaStream(stream);
         setIsTranscribingFile(true);
         startRecordingFlow();
@@ -325,7 +319,7 @@ const App: React.FC = () => {
 
 
   const handleStartClick = () => {
-    if (sessionName) { // A session is already loaded, continue it
+    if (loadedSession) { // A session is already loaded, continue it
         setShowSourceModal(true);
     } else { // Start a brand new session
         setShowSessionNameModal(true);
@@ -351,24 +345,21 @@ const App: React.FC = () => {
       if (window.confirm(t('clearChatConfirmation', lang))) {
           resetMessages([]);
           setSessionName('');
+          setLoadedSession(null);
       }
   };
 
   const handleUpdateMessage = useCallback((id: string, newText: string) => {
     setMessages(produce(draft => {
       const msg = draft.find(m => m.id === id);
-      if (msg) {
-        msg.text = newText;
-      }
+      if (msg) msg.text = newText;
     }));
   }, [setMessages]);
 
   const handleChangeSpeaker = useCallback((id: string) => {
     setMessages(produce(draft => {
       const msg = draft.find(m => m.id === id);
-      if (msg) {
-        msg.sender = msg.sender === 'user' ? 'interlocutor' : 'user';
-      }
+      if (msg) msg.sender = msg.sender === 'user' ? 'interlocutor' : 'user';
     }));
   }, [setMessages]);
   
@@ -392,7 +383,7 @@ const App: React.FC = () => {
             id: `msg-${Date.now()}`,
             text: selectedText,
             sender: newSpeaker,
-            timestamp: currentTime + 1,
+            timestamp: currentTime + 0.001,
         };
 
         if (!textBefore && !textAfter) {
@@ -409,7 +400,7 @@ const App: React.FC = () => {
                 id: `msg-${Date.now() + 1}`,
                 text: textAfter,
                 sender: originalMessage.sender,
-                timestamp: currentTime + 2,
+                timestamp: currentTime + 0.002,
             };
             draft.splice(originalMessageIndex + 1, 0, newSelectedMessage, newAfterMessage);
         }
@@ -422,16 +413,12 @@ const App: React.FC = () => {
   const handleDeleteMessage = useCallback((messageId: string) => {
     setMessages(produce(draft => {
       const indexToDelete = draft.findIndex(m => m.id === messageId);
-      if (indexToDelete === -1) return;
-
-      if (indexToDelete === 0) {
-        draft.splice(indexToDelete, 1);
-        return;
+      if (indexToDelete <= 0) { // Can't delete the first message or if not found
+          if(indexToDelete === 0) draft.splice(indexToDelete, 1);
+          return;
       }
-
       const messageToDelete = draft[indexToDelete];
       const previousMessage = draft[indexToDelete - 1];
-
       previousMessage.text = (previousMessage.text + ' ' + messageToDelete.text).trim();
       draft.splice(indexToDelete, 1);
     }));
@@ -443,7 +430,7 @@ const App: React.FC = () => {
       .map(msg => {
         const speakerLabel = msg.sender === 'user' ? settings.user.initial : settings.interlocutor.initial;
         const speaker = msg.sender === 'user' ? `${t('you', lang)} (${speakerLabel})` : `${t('speaker', lang)} (${speakerLabel})`;
-        const time = new Date(msg.timestamp).toLocaleTimeString();
+        const time = new Date(msg.timestamp * 1000).toISOString().substr(14, 5);
         return `[${time}] ${speaker}: ${msg.text}`;
       })
       .join('\n');
@@ -460,9 +447,7 @@ const App: React.FC = () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = `${sanitizeFileName(sessionName)}.txt`;
-    document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
     URL.revokeObjectURL(url);
     setShowExportModal(false);
   };
@@ -470,52 +455,29 @@ const App: React.FC = () => {
   const handleSaveAsPdf = async () => {
     if (!chatWindowRef.current) return;
     setIsExporting(true);
-  
     try {
-      // Temporarily make sure the whole chat is visible for the screenshot
       const originalHeight = chatWindowRef.current.style.height;
       const originalOverflow = chatWindowRef.current.style.overflowY;
       chatWindowRef.current.style.height = `${chatWindowRef.current.scrollHeight}px`;
       chatWindowRef.current.style.overflowY = 'visible';
-
-      const canvas = await html2canvas(chatWindowRef.current, {
-        scale: 2, // Higher scale for better quality
-        useCORS: true,
-        backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-main').trim(),
-      });
-      
-      // Restore original styles
+      const canvas = await html2canvas(chatWindowRef.current, { scale: 2, useCORS: true, backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-main').trim() });
       chatWindowRef.current.style.height = originalHeight;
       chatWindowRef.current.style.overflowY = originalOverflow;
-  
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'px',
-        format: 'a4'
-      });
-  
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: 'a4' });
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      
-      const ratio = pdfWidth / imgWidth;
-      const canvasHeightInPdf = imgHeight * ratio;
-      
-      let heightLeft = canvasHeightInPdf;
+      const ratio = pdfWidth / canvas.width;
+      const canvasHeightInPdf = canvas.height * ratio;
       let position = 0;
-  
       pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightInPdf);
-      heightLeft -= pdfHeight;
-  
+      let heightLeft = canvasHeightInPdf - pdfHeight;
       while (heightLeft > 0) {
         position -= pdfHeight;
         pdf.addPage();
         pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightInPdf);
         heightLeft -= pdfHeight;
       }
-  
       pdf.save(`${sanitizeFileName(sessionName)}.pdf`);
     } catch (error) {
       console.error("Failed to export as PDF:", error);
@@ -530,29 +492,18 @@ const App: React.FC = () => {
     if (!chatWindowRef.current) return;
     setIsExporting(true);
     try {
-       // Temporarily make sure the whole chat is visible for the screenshot
-      const originalHeight = chatWindowRef.current.style.height;
-      const originalOverflow = chatWindowRef.current.style.overflowY;
-      chatWindowRef.current.style.height = `${chatWindowRef.current.scrollHeight}px`;
-      chatWindowRef.current.style.overflowY = 'visible';
-
-       const canvas = await html2canvas(chatWindowRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-main').trim(),
-      });
-
-      // Restore original styles
-      chatWindowRef.current.style.height = originalHeight;
-      chatWindowRef.current.style.overflowY = originalOverflow;
-
-      const image = canvas.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = image;
-      a.download = `${sanitizeFileName(sessionName)}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+       const originalHeight = chatWindowRef.current.style.height;
+       const originalOverflow = chatWindowRef.current.style.overflowY;
+       chatWindowRef.current.style.height = `${chatWindowRef.current.scrollHeight}px`;
+       chatWindowRef.current.style.overflowY = 'visible';
+       const canvas = await html2canvas(chatWindowRef.current, { scale: 2, useCORS: true, backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-main').trim() });
+       chatWindowRef.current.style.height = originalHeight;
+       chatWindowRef.current.style.overflowY = originalOverflow;
+       const image = canvas.toDataURL('image/png');
+       const a = document.createElement('a');
+       a.href = image;
+       a.download = `${sanitizeFileName(sessionName)}.png`;
+       a.click();
     } catch (error) {
        console.error("Failed to export as PNG:", error);
        alert("Failed to export as PNG. Please try again.");
@@ -569,27 +520,20 @@ const App: React.FC = () => {
                 if (msg.text.trim() === '') return null;
                 const speakerLabel = msg.sender === 'user' ? `${t('you', lang)} (${settings.user.initial})` : `${t('speaker', lang)} (${settings.interlocutor.initial})`;
                 return new Paragraph({
-                    children: [
-                        new TextRun({ text: `${speakerLabel}: `, bold: true }),
-                        new TextRun(msg.text),
-                    ],
+                    children: [ new TextRun({ text: `${speakerLabel}: `, bold: true }), new TextRun(msg.text) ],
                 });
             }).filter(Boolean) as Paragraph[],
         }],
       });
-
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `${sanitizeFileName(sessionName)}.docx`;
-      document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setShowExportModal(false);
   };
-
 
   const handleCopyToClipboard = () => {
     const text = formatChatForExport();
@@ -606,25 +550,29 @@ const App: React.FC = () => {
     const text = formatChatForExport();
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: 'VoiceInk Chat Log',
-          text: text,
-        });
+        await navigator.share({ title: 'VoiceInk Chat Log', text: text });
         setShowExportModal(false);
-      } catch (error) {
-        console.error('Error sharing:', error);
-      }
+      } catch (error) { console.error('Error sharing:', error); }
     } else {
       alert(t('shareFail', lang));
     }
   };
 
-  const handleLoadSession = (session: Session) => {
-    resetMessages(session.messages);
-    setSettings(session.settings);
-    setSessionName(session.name);
+  const handleLoadSession = async (session: Session) => {
+    const audioBlob = await getSessionAudio(session.id);
+    const loaded: LoadedSession = { ...session, audioBlob };
+    setLoadedSession(loaded);
+    resetMessages(loaded.messages);
+    setSettings(loaded.settings);
+    setSessionName(loaded.name);
     setShowHistoryModal(false);
     stopTranscriptionSession();
+  };
+
+  const handleSeekAudio = (time: number) => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.currentTime = time;
+    }
   };
 
   useEffect(() => {
@@ -663,6 +611,8 @@ const App: React.FC = () => {
         onChangeSpeaker={handleChangeSpeaker}
         onDeleteMessage={handleDeleteMessage}
         lang={lang}
+        playbackTime={playbackTime}
+        onSeekAudio={handleSeekAudio}
       />
 
       {selectionContext && (
@@ -672,6 +622,14 @@ const App: React.FC = () => {
           onSplit={handleSplitMessage}
           onClear={() => setSelectionContext(null)}
           lang={lang}
+        />
+      )}
+
+      {loadedSession?.audioBlob && (
+        <AudioPlayer 
+            ref={audioPlayerRef}
+            blob={loadedSession.audioBlob} 
+            onTimeUpdate={setPlaybackTime} 
         />
       )}
       

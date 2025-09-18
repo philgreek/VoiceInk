@@ -16,12 +16,16 @@ const isSpeechRecognitionSupported = !!SpeechRecognitionAPI;
 interface UseTranscriptionProps {
   lang: string;
   onFinalTranscript: (transcript: string) => void;
+  onRecordingComplete: (audioBlob: Blob | null) => void;
+  mediaStream: MediaStream | null;
 }
 
-export const useTranscription = ({ lang = 'en-US', onFinalTranscript }: UseTranscriptionProps) => {
+export const useTranscription = ({ lang = 'en-US', onFinalTranscript, onRecordingComplete, mediaStream }: UseTranscriptionProps) => {
   const [isListening, setIsListening] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const lastProcessedFinalTranscript = useRef('');
 
   const isListeningRef = useRef(false);
@@ -43,13 +47,9 @@ export const useTranscription = ({ lang = 'en-US', onFinalTranscript }: UseTrans
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interim = '';
       let final = '';
-
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          final += event.results[i][0].transcript;
-        } else {
-          interim += event.results[i][0].transcript;
-        }
+        if (event.results[i].isFinal) final += event.results[i][0].transcript;
+        else interim += event.results[i][0].transcript;
       }
       
       setInterimTranscript(interim);
@@ -65,9 +65,8 @@ export const useTranscription = ({ lang = 'en-US', onFinalTranscript }: UseTrans
       if (restartQueuedRef.current) {
         restartQueuedRef.current = false;
         if (recognitionRef.current) {
-          try {
-            recognitionRef.current.start();
-          } catch (e) {
+          try { recognitionRef.current.start(); } 
+          catch (e) {
             console.error("Error on queued restart:", e);
             isListeningRef.current = false;
             setIsListening(false);
@@ -84,9 +83,8 @@ export const useTranscription = ({ lang = 'en-US', onFinalTranscript }: UseTrans
       if (isListeningRef.current) {
         setTimeout(() => {
           if (isListeningRef.current && recognitionRef.current) {
-            try {
-              recognitionRef.current.start();
-            } catch (error) {
+            try { recognitionRef.current.start(); } 
+            catch (error) {
               console.error("Error restarting speech recognition:", error);
               isListeningRef.current = false;
               setIsListening(false);
@@ -97,9 +95,7 @@ export const useTranscription = ({ lang = 'en-US', onFinalTranscript }: UseTrans
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      if (event.error === 'no-speech') {
-        return;
-      }
+      if (event.error === 'no-speech') return;
       console.error('Speech recognition error', event.error);
       const criticalErrors = ['not-allowed', 'service-not-allowed', 'audio-capture', 'network', 'aborted'];
       if (criticalErrors.includes(event.error)) {
@@ -126,7 +122,7 @@ export const useTranscription = ({ lang = 'en-US', onFinalTranscript }: UseTrans
   }, [lang]);
 
   const startListening = useCallback(() => {
-    if (recognitionRef.current && !isListeningRef.current) {
+    if (recognitionRef.current && !isListeningRef.current && mediaStream) {
       try {
         manualStopRef.current = false;
         restartQueuedRef.current = false;
@@ -135,13 +131,26 @@ export const useTranscription = ({ lang = 'en-US', onFinalTranscript }: UseTrans
         recognitionRef.current.start();
         setIsListening(true);
         isListeningRef.current = true;
+        
+        // Start audio recording
+        if (mediaStream.getAudioTracks().length > 0) {
+            mediaRecorderRef.current = new MediaRecorder(mediaStream);
+            audioChunksRef.current = [];
+            mediaRecorderRef.current.ondataavailable = (event) => {
+                audioChunksRef.current.push(event.data);
+            };
+            mediaRecorderRef.current.start();
+        } else {
+            mediaRecorderRef.current = null;
+        }
+
       } catch (error) {
         console.error("Error starting speech recognition:", error);
         isListeningRef.current = false;
         setIsListening(false);
       }
     }
-  }, []);
+  }, [mediaStream]);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListeningRef.current) {
@@ -150,8 +159,24 @@ export const useTranscription = ({ lang = 'en-US', onFinalTranscript }: UseTrans
       isListeningRef.current = false;
       recognitionRef.current.stop();
       setIsListening(false);
+
+      // Stop audio recording and pass blob back
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.onstop = () => {
+            if (audioChunksRef.current.length > 0) {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                onRecordingComplete(audioBlob);
+            } else {
+                onRecordingComplete(null);
+            }
+            audioChunksRef.current = [];
+        };
+        mediaRecorderRef.current.stop();
+      } else {
+         onRecordingComplete(null);
+      }
     }
-  }, []);
+  }, [onRecordingComplete]);
   
   const restartListening = useCallback(() => {
     if (recognitionRef.current && isListeningRef.current) {

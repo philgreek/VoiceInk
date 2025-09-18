@@ -1,59 +1,89 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { Session, Message, Settings } from '../types';
+// FIX: Updated import to use the renamed `initDB` function from `utils/db`.
+import { initDB } from '../utils/db';
 
-const HISTORY_KEY = 'voiceInkSessionHistory';
 const MAX_HISTORY_ITEMS = 10;
 
 export const useSessionHistory = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
 
-  useEffect(() => {
+  const fetchSessions = useCallback(async () => {
     try {
-      const savedHistory = localStorage.getItem(HISTORY_KEY);
-      if (savedHistory) {
-        setSessions(JSON.parse(savedHistory));
-      }
+      // FIX: Call renamed function `initDB`.
+      const db = await initDB();
+      // Get all sessions, sort by savedAt descending, and limit to MAX_HISTORY_ITEMS
+      const allSessions = await db.getAll('sessions');
+      const sortedSessions = allSessions.sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
+      setSessions(sortedSessions.slice(0, MAX_HISTORY_ITEMS));
     } catch (error) {
-      console.error("Failed to load session history from localStorage", error);
+      console.error("Failed to load session history from IndexedDB", error);
       setSessions([]);
     }
   }, []);
 
-  const updateAndPersistSessions = (newSessions: Session[]) => {
-    try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(newSessions));
-      setSessions(newSessions);
-    } catch (error) {
-      console.error("Failed to save session history to localStorage", error);
-    }
-  };
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
-  const saveSession = useCallback((sessionData: { name: string; messages: Message[]; settings: Settings }) => {
+  const saveSession = useCallback(async (
+    sessionData: { name: string; messages: Message[]; settings: Settings, hasAudio: boolean },
+    audioBlob: Blob | null
+  ) => {
+    // FIX: Call renamed function `initDB`.
+    const db = await initDB();
     const newSession: Session = {
       ...sessionData,
       id: `session-${Date.now()}`,
       savedAt: new Date().toISOString(),
     };
+    
+    await db.put('sessions', newSession);
+    if(audioBlob && newSession.hasAudio) {
+        await db.put('audio', { id: newSession.id, blob: audioBlob });
+    }
 
-    setSessions(prevSessions => {
-      const updatedSessions = [newSession, ...prevSessions];
-      // Keep only the last MAX_HISTORY_ITEMS sessions
-      if (updatedSessions.length > MAX_HISTORY_ITEMS) {
-        updatedSessions.length = MAX_HISTORY_ITEMS;
+    // After saving, re-fetch to update the list and apply the limit
+    await fetchSessions();
+    
+    // Prune old entries if history exceeds the limit
+    const allSessions = await db.getAll('sessions');
+    if (allSessions.length > MAX_HISTORY_ITEMS) {
+        const sorted = allSessions.sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
+        const sessionsToDelete = sorted.slice(MAX_HISTORY_ITEMS);
+        const tx = db.transaction(['sessions', 'audio'], 'readwrite');
+        const sessionStore = tx.objectStore('sessions');
+        const audioStore = tx.objectStore('audio');
+        await Promise.all(sessionsToDelete.map(s => {
+            sessionStore.delete(s.id);
+            audioStore.delete(s.id);
+        }));
+        await tx.done;
+    }
+
+  }, [fetchSessions]);
+
+  const deleteSession = useCallback(async (sessionId: string) => {
+    // FIX: Call renamed function `initDB`.
+    const db = await initDB();
+    const tx = db.transaction(['sessions', 'audio'], 'readwrite');
+    await tx.objectStore('sessions').delete(sessionId);
+    await tx.objectStore('audio').delete(sessionId);
+    await tx.done;
+    await fetchSessions(); // Re-fetch to update UI
+  }, [fetchSessions]);
+  
+  const getSessionAudio = useCallback(async (sessionId: string): Promise<Blob | null> => {
+      try {
+        // FIX: Call renamed function `initDB`.
+        const db = await initDB();
+        const audioRecord = await db.get('audio', sessionId);
+        return audioRecord ? audioRecord.blob : null;
+      } catch (error) {
+        console.error("Failed to get session audio from IndexedDB", error);
+        return null;
       }
-      updateAndPersistSessions(updatedSessions);
-      return updatedSessions;
-    });
   }, []);
 
-  const deleteSession = useCallback((sessionId: string) => {
-    setSessions(prevSessions => {
-      const filteredSessions = prevSessions.filter(s => s.id !== sessionId);
-      updateAndPersistSessions(filteredSessions);
-      return filteredSessions;
-    });
-  }, []);
-
-  return { sessions, saveSession, deleteSession };
+  return { sessions, saveSession, deleteSession, getSessionAudio };
 };
