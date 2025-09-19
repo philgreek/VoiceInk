@@ -2,7 +2,6 @@ const CACHE_NAME = 'voiceink-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/index.tsx',
   '/icon.svg'
 ];
 
