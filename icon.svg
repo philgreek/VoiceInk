@@ -1,8 +1,32 @@
-<svg width="512" height="512" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="24" height="24" rx="6" fill="#1e293b"/>
-    <g transform="translate(0, -0.5)">
-        <path d="M12 3C10.3431 3 9 4.34315 9 6V12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12V6C15 4.34315 13.6569 3 12 3Z" fill="#22d3ee"/>
-        <path d="M19 11V12C19 15.866 15.866 19 12 19C8.13401 19 5 15.866 5 12V11" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M12 19V22" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="gB" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#00C853"/>
+      <stop offset="1" stop-color="#00A152"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Speech bubble outline -->
+  <path d="M64 96h320a40 40 0 0 1 40 40v160a40 40 0 0 1-40 40H152l-56 48v-48H64a40 40 0 0 1-40-40V136a40 40 0 0 1 40-40z"
+        stroke="#111111" stroke-width="18" fill="none" stroke-linejoin="round"/>
+
+  <!-- Waveform -> nib (green gradient) -->
+  <path d="M120 200
+           C150 160, 196 240, 232 200
+           C268 160, 314 240, 350 200
+           L370 220
+           L340 300
+           L312 260
+           L312 360
+           L330 360
+           L312 420
+           L292 360
+           L272 360
+           L272 300
+           L240 260"
+        stroke="url(#gB)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Fountain nib tip (outline matches bubble) -->
+  <path d="M312 360 L320 408 L304 408 Z" fill="#111111"/>
+  <circle cx="312" cy="380" r="8" fill="#111111"/>
 </svg>
