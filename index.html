@@ -5,9 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VoiceInk</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intro.js@7.2.0/introjs.min.css" />
     <style>
       body {
         font-family: 'Inter', sans-serif;
+        overflow: hidden; /* Prevent main body scrollbar */
+      }
+      html {
+        overflow: hidden;
       }
       @import url('https://rsms.me/inter/inter.css');
 
@@ -29,7 +34,7 @@
         --bg-surface: #1e293b; /* slate-800 */
         --bg-element: #334155; /* slate-700 */
         --bg-element-hover: #475569; /* slate-600 */
-        --bg-subtle: rgba(15, 23, 42, 0.5); /* slate-900/50 */
+        --bg-subtle: rgba(30, 41, 59, 0.7); /* slate-800/70 */
         --text-primary: #e2e8f0; /* slate-200 */
         --text-secondary: #94a3b8; /* slate-400 */
         --text-placeholder: #64748b; /* slate-500 */
@@ -57,7 +62,7 @@
         --bg-surface: #404040; /* neutral-700 */
         --bg-element: #525252; /* neutral-600 */
         --bg-element-hover: #737373; /* neutral-500 */
-        --bg-subtle: rgba(23, 23, 23, 0.5); /* neutral-900/50 */
+        --bg-subtle: rgba(64, 64, 64, 0.7); /* neutral-700/70 */
         --text-primary: #f5f5f5; /* neutral-100 */
         --text-secondary: #a3a3a3; /* neutral-400 */
         --text-placeholder: #737373; /* neutral-500 */
@@ -65,6 +70,70 @@
         --accent-primary: #86efac; /* green-300 */
         --accent-primary-hover: #4ade80; /* green-400 */
       }
+      
+      /* Intro.js Custom Theming */
+      .introjs-tooltip {
+        background-color: var(--bg-subtle) !important;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem; /* 12px */
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        transition: box-shadow 0.3s ease-in-out;
+      }
+      .introjs-tooltip-glow {
+          box-shadow: 0 0 15px 3px rgba(239, 68, 68, 0.5), 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05) !important; /* red-500 glow */
+      }
+      .introjs-button {
+        text-shadow: none;
+        border-radius: 0.5rem; /* 8px */
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        transition: background-color 0.2s;
+        border: 1px solid transparent;
+        background-image: none !important;
+      }
+      .introjs-button:focus, .introjs-button:hover {
+          box-shadow: none;
+          border: 1px solid transparent;
+      }
+      .introjs-prevbutton {
+          background-color: var(--bg-element) !important;
+          color: var(--text-secondary) !important;
+          border-color: var(--border-color) !important;
+      }
+      .theme-light .introjs-prevbutton, .theme-neutral .introjs-prevbutton {
+          color: var(--text-primary) !important;
+      }
+      .introjs-prevbutton:hover {
+          background-color: var(--bg-element-hover) !important;
+      }
+      .introjs-nextbutton, .introjs-donebutton {
+          background-color: var(--accent-primary) !important;
+          color: white !important;
+      }
+      .introjs-nextbutton:hover, .introjs-donebutton:hover {
+          background-color: var(--accent-primary-hover) !important;
+      }
+      .theme-neutral .introjs-nextbutton, .theme-neutral .introjs-donebutton {
+          color: #171717 !important; /* neutral-900 */
+      }
+      .introjs-skipbutton {
+          color: var(--text-secondary) !important;
+      }
+      .introjs-tooltiptext {
+          color: var(--text-primary);
+      }
+      .introjs-helperLayer {
+          box-shadow: rgba(239, 68, 68, 0.5) 0px 0px 0px 4px inset, rgba(0, 0, 0, 0.2) 0px 0px 0px 5000px !important;
+          border-radius: 0.75rem;
+      }
+      .introjs-arrow.top { border-bottom-color: var(--bg-subtle); }
+      .introjs-arrow.bottom { border-top-color: var(--bg-subtle); }
+      .introjs-arrow.left { border-right-color: var(--bg-subtle); }
+      .introjs-arrow.right { border-left-color: var(--bg-subtle); }
+
     </style>
   <script type="importmap">
 {
@@ -76,7 +145,8 @@
     "jspdf": "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm",
     "docx": "https://cdn.jsdelivr.net/npm/docx@8.5.0/+esm",
     "html2canvas": "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm",
-    "idb": "https://cdn.jsdelivr.net/npm/idb@7/+esm"
+    "idb": "https://cdn.jsdelivr.net/npm/idb@7/+esm",
+    "intro.js": "https://cdn.jsdelivr.net/npm/intro.js@7.2.0/+esm"
   }
 }
 </script>

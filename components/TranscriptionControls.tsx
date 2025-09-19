@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { MicIcon } from './icons';
 import { t, Language } from '../utils/translations';
@@ -36,8 +34,13 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
   const baseButtonClasses = 'font-bold py-4 px-4 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg text-white text-xl flex items-center justify-center select-none';
 
   return (
-    <div className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-4 sm:p-6 border-t border-[var(--border-color)] sticky bottom-0">
-        <div className="flex items-stretch justify-center gap-4 max-w-lg mx-auto">
+    <div 
+      className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-4 sm:p-6 border-t border-[var(--border-color)] sticky bottom-0"
+    >
+        <div 
+          className="flex items-stretch justify-center gap-4 max-w-lg mx-auto"
+          data-tour-id="transcription-controls"
+        >
           <button
             onClick={onMicToggle}
             disabled={isPttDisabled}

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-import { Message, Session, Settings, SelectionContext, LoadedSession } from './types';
+import { Message, Session, Settings, LoadedSession } from './types';
 import { Header } from './components/Header';
 import { SessionBar } from './components/SessionBar';
 import { ChatWindow } from './components/ChatWindow';
@@ -18,9 +18,9 @@ import { useHistoryState } from './hooks/useHistoryState';
 import { useSessionHistory } from './hooks/useSessionHistory';
 import jsPDF from 'jspdf';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
-import { ContextualActionBar } from './components/ContextualActionBar';
 import html2canvas from 'html2canvas';
 import { AudioPlayer } from './components/AudioPlayer';
+import introJs from 'intro.js';
 
 const defaultSettings: Settings = {
   user: {
@@ -63,7 +63,6 @@ const App: React.FC = () => {
   const [loadedSession, setLoadedSession] = useState<LoadedSession | null>(null);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
 
@@ -123,6 +122,53 @@ const App: React.FC = () => {
     mediaStream,
   });
 
+  const startTour = useCallback(() => {
+    const tour = introJs();
+    tour.setOptions({
+      steps: [
+        { title: t('tourWelcomeTitle', lang), intro: t('tourWelcomeBody', lang) },
+        { element: '[data-tour-id="history-btn"]', title: t('tourHistoryTitle', lang), intro: t('tourHistoryBody', lang) },
+        { element: '[data-tour-id="header-controls"]', title: t('tourControlsTitle', lang), intro: t('tourControlsBody', lang) },
+        { element: '[data-tour-id="chat-window"]', title: t('tourChatWindowTitle', lang), intro: t('tourChatWindowBody', lang) },
+        { element: '[data-tour-id="transcription-controls"]', title: t('tourTranscriptionControlsTitle', lang), intro: t('tourTranscriptionControlsBody', lang) },
+        { element: '[data-tour-id="chat-window"]', title: t('tourEditingTitle', lang), intro: t('tourEditingBody', lang) },
+      ],
+      nextLabel: t('next', lang),
+      prevLabel: t('prev', lang),
+      doneLabel: t('done', lang),
+      exitOnOverlayClick: false,
+      showProgress: true,
+    });
+
+    tour.onchange(function() {
+      const tooltip = document.querySelector('.introjs-tooltip');
+      if (!tooltip) return;
+      
+      const currentStepIndex = this.currentStep();
+      if (currentStepIndex === 3 || currentStepIndex === 5) {
+        tooltip.classList.add('introjs-tooltip-glow');
+      } else {
+        tooltip.classList.remove('introjs-tooltip-glow');
+      }
+    });
+
+    tour.onexit(function() {
+      const tooltip = document.querySelector('.introjs-tooltip');
+      tooltip?.classList.remove('introjs-tooltip-glow');
+    });
+
+    tour.start();
+  }, [lang]);
+
+  useEffect(() => {
+    const tutorialShown = localStorage.getItem('voiceink_tutorial_shown');
+    if (!tutorialShown) {
+      setTimeout(() => {
+        startTour();
+        localStorage.setItem('voiceink_tutorial_shown', 'true');
+      }, 500);
+    }
+  }, [startTour]);
 
   useEffect(() => {
     try {
@@ -131,32 +177,6 @@ const App: React.FC = () => {
       console.error("Failed to save settings to localStorage", error);
     }
   }, [settings]);
-
-    useEffect(() => {
-        const handleSelectionChange = () => {
-            const selection = window.getSelection();
-            const text = selection?.toString().trim();
-
-            if (text && selection?.anchorNode) {
-                const parentElement = (selection.anchorNode.nodeType === 3 ? selection.anchorNode.parentNode : selection.anchorNode) as HTMLElement;
-                const messageElement = parentElement?.closest('[data-message-id]');
-                
-                if (messageElement) {
-                    const messageId = messageElement.getAttribute('data-message-id');
-                    if (messageId) {
-                        setSelectionContext({ messageId, text });
-                        return;
-                    }
-                }
-            }
-            setSelectionContext(null);
-        };
-
-        document.addEventListener('selectionchange', handleSelectionChange);
-        return () => {
-            document.removeEventListener('selectionchange', handleSelectionChange);
-        };
-    }, []);
 
   useEffect(() => {
     if (isRecording && !isPaused) {
@@ -231,7 +251,10 @@ const App: React.FC = () => {
         : { video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } };
       
       try {
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        const stream = source === 'microphone' 
+          ? await navigator.mediaDevices.getUserMedia(constraints)
+          : await navigator.mediaDevices.getDisplayMedia(constraints);
+
         if(source === 'display') {
             const audioTrack = stream.getAudioTracks()[0];
              if (!audioTrack) {
@@ -405,7 +428,6 @@ const App: React.FC = () => {
             draft.splice(originalMessageIndex + 1, 0, newSelectedMessage, newAfterMessage);
         }
     }));
-    setSelectionContext(null);
     window.getSelection()?.removeAllRanges();
 }, [setMessages]);
 
@@ -593,6 +615,7 @@ const App: React.FC = () => {
         onRedo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
+        onHelpClick={startTour}
         lang={lang}
       />
       {(isRecording || sessionName) && (
@@ -610,21 +633,12 @@ const App: React.FC = () => {
         onUpdateMessage={handleUpdateMessage}
         onChangeSpeaker={handleChangeSpeaker}
         onDeleteMessage={handleDeleteMessage}
+        onSplitMessage={handleSplitMessage}
         lang={lang}
         playbackTime={playbackTime}
         onSeekAudio={handleSeekAudio}
       />
-
-      {selectionContext && (
-        <ContextualActionBar
-          settings={settings}
-          selectionContext={selectionContext}
-          onSplit={handleSplitMessage}
-          onClear={() => setSelectionContext(null)}
-          lang={lang}
-        />
-      )}
-
+      
       {loadedSession?.audioBlob && (
         <AudioPlayer 
             ref={audioPlayerRef}

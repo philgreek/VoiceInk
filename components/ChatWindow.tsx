@@ -1,5 +1,3 @@
-
-
 import React, { useRef, useEffect, forwardRef } from 'react';
 import type { Message, Settings } from '../types';
 import { MicIcon, FileUploadIcon } from './icons';
@@ -17,6 +15,7 @@ interface ChatWindowProps {
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
   onDeleteMessage: (id: string) => void;
+  onSplitMessage: (messageId: string, selectedText: string, newSpeaker: 'user' | 'interlocutor') => void;
   lang: Language;
   playbackTime: number;
   onSeekAudio: (time: number) => void;
@@ -28,10 +27,11 @@ const MessageList: React.FC<{
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
   onDeleteMessage: (id: string) => void;
+  onSplitMessage: (messageId: string, selectedText: string, newSpeaker: 'user' | 'interlocutor') => void;
   lang: Language;
   playbackTime: number;
   onSeekAudio: (time: number) => void;
-}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, lang, playbackTime, onSeekAudio }) => {
+}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, onSplitMessage, lang, playbackTime, onSeekAudio }) => {
   return (
     <>
       {messages.map((msg, index) => {
@@ -46,8 +46,9 @@ const MessageList: React.FC<{
               onUpdateMessage={onUpdateMessage}
               onChangeSpeaker={onChangeSpeaker}
               onDeleteMessage={onDeleteMessage}
-              lang={lang}
+              onSplitMessage={onSplitMessage}
               isFirstMessage={index === 0}
+              lang={lang}
               isActive={isActive}
               onSeekAudio={onSeekAudio}
             />
@@ -90,6 +91,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
     onUpdateMessage,
     onChangeSpeaker,
     onDeleteMessage,
+    onSplitMessage,
     lang,
     playbackTime,
     onSeekAudio,
@@ -135,6 +137,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
             onUpdateMessage={onUpdateMessage}
             onChangeSpeaker={onChangeSpeaker}
             onDeleteMessage={onDeleteMessage}
+            onSplitMessage={onSplitMessage}
             lang={lang}
             playbackTime={playbackTime}
             onSeekAudio={onSeekAudio}
@@ -148,7 +151,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
   };
 
   return (
-    <div className="flex-grow overflow-y-auto no-scrollbar" ref={ref}>
+    <div className="flex-grow overflow-y-auto no-scrollbar" ref={ref} data-tour-id="chat-window">
         {renderContent()}
     </div>
   );

@@ -9,9 +9,9 @@ export const useHistoryState = <T>(initialState: T) => {
   const canUndo = currentIndex > 0;
   const canRedo = currentIndex < history.length - 1;
 
-  // FIX: The implementation of setState was corrected to handle immer-produced updater functions correctly.
-  // The original implementation incorrectly wrapped the updater in another `produce` call, causing a type error.
-  // The type signature is also updated to reflect that it receives a state-to-state function.
+  // FIX: Corrected the implementation of setState to properly handle updater functions,
+  // especially those created by Immer. The updater function is now correctly invoked
+  // with the current state to produce the new state.
   const setState = useCallback((
       updater: T | ((currentState: T) => T),
       skipHistory: boolean = false
