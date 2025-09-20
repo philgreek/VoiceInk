@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-import { Message, Session, Settings, LoadedSession } from './types';
+import { Message, Session, Settings, LoadedSession, SelectionContext } from './types';
 import { Header } from './components/Header';
 import { SessionBar } from './components/SessionBar';
 import { ChatWindow } from './components/ChatWindow';
@@ -12,6 +11,7 @@ import { SourceSelectionModal } from './components/SourceSelectionModal';
 import { FileInstructionsModal } from './components/FileInstructionsModal';
 import { SessionNameModal } from './components/SessionNameModal';
 import { HistoryModal } from './components/HistoryModal';
+import { ContextualActionBar } from './components/ContextualActionBar';
 import { produce } from 'immer';
 import { t, Language } from './utils/translations';
 import { useHistoryState } from './hooks/useHistoryState';
@@ -65,6 +65,8 @@ const App: React.FC = () => {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
+  const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
+
 
   const { sessions, saveSession, deleteSession, getSessionAudio } = useSessionHistory();
 
@@ -169,6 +171,31 @@ const App: React.FC = () => {
       }, 500);
     }
   }, [startTour]);
+  
+  useEffect(() => {
+    const handleSelectionChange = () => {
+        const selection = window.getSelection();
+        const selectedText = selection?.toString().trim();
+
+        if (selectedText) {
+            const anchorNode = selection.anchorNode;
+            if (anchorNode && anchorNode.parentElement) {
+                const messageElement = anchorNode.parentElement.closest('[data-message-id]');
+                if (messageElement) {
+                    const messageId = messageElement.getAttribute('data-message-id');
+                    if(messageId) {
+                        setSelectionContext({ messageId, text: selectedText });
+                        return;
+                    }
+                }
+            }
+        }
+        setSelectionContext(null);
+    };
+
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  }, []);
 
   useEffect(() => {
     try {
@@ -228,7 +255,8 @@ const App: React.FC = () => {
     setLoadedSession(null);
   };
 
-  const startRecordingFlow = () => {
+  const startRecordingFlow = (name: string) => {
+    setSessionName(name);
     setIsRecording(true);
     setIsPaused(false);
     setCurrentSpeaker('interlocutor');
@@ -237,11 +265,8 @@ const App: React.FC = () => {
   };
 
   const handleSessionNameConfirmed = (name: string) => {
-    setSessionName(name);
-    resetMessages([]);
-    setLoadedSession(null);
     setShowSessionNameModal(false);
-    setShowSourceModal(true);
+    startRecordingFlow(name);
   };
   
   const handleSourceSelected = async (source: 'microphone' | 'display') => {
@@ -264,12 +289,12 @@ const App: React.FC = () => {
             }
              audioTrack.onended = () => stopTranscriptionSession();
         }
-
+        
         setMediaStream(stream);
         if (streamAudioRef.current) {
             streamAudioRef.current.srcObject = stream;
         }
-        startRecordingFlow();
+        setShowSessionNameModal(true);
       } catch (err) {
         console.error(`Error starting ${source} media:`, err);
         if ((err as DOMException).name !== 'NotAllowedError') {
@@ -294,17 +319,8 @@ const App: React.FC = () => {
     }
   };
 
-  const handleStartFileTranscriptionFlow = () => {
+  const handleStartFileTranscriptionFlow = async () => {
     setShowFileInstructionsModal(false);
-    startFileTranscription();
-  };
-
-  const handleCancelFileTranscriptionFlow = () => {
-    setShowFileInstructionsModal(false);
-    setAudioFile(null);
-  };
-
-  const startFileTranscription = useCallback(async () => {
     if (!audioFile) return;
 
     try {
@@ -324,13 +340,12 @@ const App: React.FC = () => {
         audioTrack.onended = () => stopTranscriptionSession();
         setMediaStream(stream);
         setIsTranscribingFile(true);
-        startRecordingFlow();
 
         if (fileAudioRef.current) {
             fileAudioRef.current.src = URL.createObjectURL(audioFile);
             fileAudioRef.current.play();
         }
-
+        setShowSessionNameModal(true);
     } catch (err) {
         console.error("Error starting display media for file transcription:", err);
         setAudioFile(null);
@@ -338,14 +353,21 @@ const App: React.FC = () => {
             alert(t('screenShareError', lang));
         }
     }
-  }, [audioFile, stopTranscriptionSession, lang]);
+  };
 
+  const handleCancelFileTranscriptionFlow = () => {
+    setShowFileInstructionsModal(false);
+    setAudioFile(null);
+  };
 
   const handleStartClick = () => {
     if (loadedSession) { // A session is already loaded, continue it
-        setShowSourceModal(true);
+      setSessionName(loadedSession.name);
+      setShowSourceModal(true);
     } else { // Start a brand new session
-        setShowSessionNameModal(true);
+      resetMessages([]);
+      setLoadedSession(null);
+      setShowSourceModal(true);
     }
   };
 
@@ -428,6 +450,7 @@ const App: React.FC = () => {
             draft.splice(originalMessageIndex + 1, 0, newSelectedMessage, newAfterMessage);
         }
     }));
+    setSelectionContext(null);
     window.getSelection()?.removeAllRanges();
 }, [setMessages]);
 
@@ -633,11 +656,20 @@ const App: React.FC = () => {
         onUpdateMessage={handleUpdateMessage}
         onChangeSpeaker={handleChangeSpeaker}
         onDeleteMessage={handleDeleteMessage}
-        onSplitMessage={handleSplitMessage}
         lang={lang}
         playbackTime={playbackTime}
         onSeekAudio={handleSeekAudio}
       />
+      
+      {selectionContext && (
+        <ContextualActionBar 
+            onSplit={handleSplitMessage}
+            onClear={() => setSelectionContext(null)}
+            context={selectionContext}
+            settings={settings}
+            lang={lang}
+        />
+      )}
       
       {loadedSession?.audioBlob && (
         <AudioPlayer 
@@ -684,7 +716,10 @@ const App: React.FC = () => {
         lang={lang}
       />}
       {showSourceModal && <SourceSelectionModal 
-        onClose={() => setShowSourceModal(false)}
+        onClose={() => {
+            setShowSourceModal(false);
+            stopMediaStream(); // Stop stream if user closes modal
+        }}
         onSelectSource={handleSourceSelected}
         onFileSelectClick={handleFileSelectClick}
         lang={lang}

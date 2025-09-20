@@ -15,7 +15,6 @@ interface ChatWindowProps {
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
   onDeleteMessage: (id: string) => void;
-  onSplitMessage: (messageId: string, selectedText: string, newSpeaker: 'user' | 'interlocutor') => void;
   lang: Language;
   playbackTime: number;
   onSeekAudio: (time: number) => void;
@@ -27,11 +26,10 @@ const MessageList: React.FC<{
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
   onDeleteMessage: (id: string) => void;
-  onSplitMessage: (messageId: string, selectedText: string, newSpeaker: 'user' | 'interlocutor') => void;
   lang: Language;
   playbackTime: number;
   onSeekAudio: (time: number) => void;
-}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, onSplitMessage, lang, playbackTime, onSeekAudio }) => {
+}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, lang, playbackTime, onSeekAudio }) => {
   return (
     <>
       {messages.map((msg, index) => {
@@ -46,7 +44,6 @@ const MessageList: React.FC<{
               onUpdateMessage={onUpdateMessage}
               onChangeSpeaker={onChangeSpeaker}
               onDeleteMessage={onDeleteMessage}
-              onSplitMessage={onSplitMessage}
               isFirstMessage={index === 0}
               lang={lang}
               isActive={isActive}
@@ -91,7 +88,6 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
     onUpdateMessage,
     onChangeSpeaker,
     onDeleteMessage,
-    onSplitMessage,
     lang,
     playbackTime,
     onSeekAudio,
@@ -137,7 +133,6 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
             onUpdateMessage={onUpdateMessage}
             onChangeSpeaker={onChangeSpeaker}
             onDeleteMessage={onDeleteMessage}
-            onSplitMessage={onSplitMessage}
             lang={lang}
             playbackTime={playbackTime}
             onSeekAudio={onSeekAudio}
