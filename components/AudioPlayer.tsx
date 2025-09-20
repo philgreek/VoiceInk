@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { PlayIcon } from './icons'; // Assuming a generic Play/Pause icon component exists
 
@@ -39,13 +40,14 @@ export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(({ blo
 
       audio.addEventListener('loadeddata', setAudioData);
       audio.addEventListener('timeupdate', setAudioTime);
+      audio.load(); // Force load for mobile browsers
 
       return () => {
         audio.removeEventListener('loadeddata', setAudioData);
         audio.removeEventListener('timeupdate', setAudioTime);
       };
     }
-  }, [onTimeUpdate]);
+  }, [onTimeUpdate, audioURL]); // Re-run when audioURL changes
 
   useEffect(() => {
       // Clean up the object URL when the component unmounts

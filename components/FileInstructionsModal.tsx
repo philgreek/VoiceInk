@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { XIcon, InfoIcon } from './icons';
 import { t, Language } from '../utils/translations';
