@@ -13,6 +13,7 @@ import { FileInstructionsModal } from './components/FileInstructionsModal';
 import { SessionNameModal } from './components/SessionNameModal';
 import { HistoryModal } from './components/HistoryModal';
 import { ContextualActionBar } from './components/ContextualActionBar';
+import { AIAssistantBar } from './components/AIAssistantBar';
 import { produce } from 'immer';
 import { t, Language } from './utils/translations';
 import { useHistoryState } from './hooks/useHistoryState';
@@ -22,6 +23,7 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import html2canvas from 'html2canvas';
 import { AudioPlayer } from './components/AudioPlayer';
 import introJs from 'intro.js';
+import { getAIResponse, getProofreadText } from './utils/gemini';
 
 const defaultSettings: Settings = {
   user: {
@@ -33,6 +35,11 @@ const defaultSettings: Settings = {
     initial: 'S',
     bubbleColor: 'bg-slate-700',
     avatarColor: 'bg-slate-600',
+  },
+  assistant: {
+    initial: 'AI',
+    bubbleColor: 'bg-gradient-to-br from-purple-600 to-indigo-600',
+    avatarColor: 'bg-purple-800',
   },
   theme: 'dark',
   language: 'ru',
@@ -67,6 +74,8 @@ const App: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [isAIProcessing, setIsAIProcessing] = useState(false);
 
 
   const { sessions, saveSession, deleteSession, getSessionAudio } = useSessionHistory();
@@ -405,7 +414,11 @@ const App: React.FC = () => {
   const handleChangeSpeaker = useCallback((id: string) => {
     setMessages(produce(draft => {
       const msg = draft.find(m => m.id === id);
-      if (msg) msg.sender = msg.sender === 'user' ? 'interlocutor' : 'user';
+      if (msg) {
+        if (msg.sender === 'user') msg.sender = 'interlocutor';
+        else if (msg.sender === 'interlocutor') msg.sender = 'user';
+        // 'assistant' sender cannot be changed
+      }
     }));
   }, [setMessages]);
   
@@ -470,13 +483,24 @@ const App: React.FC = () => {
     }));
   }, [setMessages]);
 
-  const formatChatForExport = () => {
+  const formatChatForExport = (excludeAssistant = false) => {
     return messages
-      .filter(msg => msg.text.trim() !== '')
+      .filter(msg => {
+        if (excludeAssistant && msg.sender === 'assistant') return false;
+        return msg.text.trim() !== '';
+      })
       .map(msg => {
-        const speakerLabel = msg.sender === 'user' ? settings.user.initial : settings.interlocutor.initial;
-        const speaker = msg.sender === 'user' ? `${t('you', lang)} (${speakerLabel})` : `${t('speaker', lang)} (${speakerLabel})`;
-        const time = new Date(msg.timestamp * 1000).toISOString().substr(14, 5);
+        let speakerLabel;
+        if (msg.sender === 'user') speakerLabel = settings.user.initial;
+        else if (msg.sender === 'interlocutor') speakerLabel = settings.interlocutor.initial;
+        else speakerLabel = settings.assistant.initial;
+
+        const speakerName = msg.sender === 'user' ? t('you', lang) :
+                           msg.sender === 'interlocutor' ? t('speaker', lang) :
+                           t('assistant', lang);
+                           
+        const speaker = `${speakerName} (${speakerLabel})`;
+        const time = msg.timestamp ? new Date(msg.timestamp * 1000).toISOString().substr(14, 5) : 'AI';
         return `[${time}] ${speaker}: ${msg.text}`;
       })
       .join('\n');
@@ -564,7 +588,9 @@ const App: React.FC = () => {
         sections: [{
             children: messages.map(msg => {
                 if (msg.text.trim() === '') return null;
-                const speakerLabel = msg.sender === 'user' ? `${t('you', lang)} (${settings.user.initial})` : `${t('speaker', lang)} (${settings.interlocutor.initial})`;
+                const speakerLabel = msg.sender === 'user' ? `${t('you', lang)} (${settings.user.initial})` : 
+                                     msg.sender === 'interlocutor' ? `${t('speaker', lang)} (${settings.interlocutor.initial})` :
+                                     `${t('assistant', lang)} (${settings.assistant.initial})`;
                 return new Paragraph({
                     children: [ new TextRun({ text: `${speakerLabel}: `, bold: true }), new TextRun(msg.text) ],
                 });
@@ -618,6 +644,62 @@ const App: React.FC = () => {
   const handleSeekAudio = (time: number) => {
     if (audioPlayerRef.current) {
       audioPlayerRef.current.currentTime = time;
+    }
+  };
+
+  const addAssistantMessage = (text: string, id?: string) => {
+    setMessages(produce(draft => {
+      if (id) {
+        const existingMsg = draft.find(m => m.id === id);
+        if (existingMsg) {
+          existingMsg.text = text;
+          return;
+        }
+      }
+      draft.push({
+        id: id || `msg-ai-${Date.now()}`,
+        text,
+        sender: 'assistant',
+        timestamp: 0,
+      });
+    }));
+  };
+
+  const handleProofread = async () => {
+    const conversationText = formatChatForExport(true);
+    if (!conversationText) return;
+
+    setIsAIProcessing(true);
+    const thinkingId = `msg-ai-thinking-${Date.now()}`;
+    addAssistantMessage(t('assistantThinking', lang), thinkingId);
+
+    try {
+      const correctedText = await getProofreadText(conversationText, lang);
+      addAssistantMessage(correctedText, thinkingId);
+    } catch (error) {
+      console.error('Proofreading failed:', error);
+      addAssistantMessage(t('aiError', lang), thinkingId);
+    } finally {
+      setIsAIProcessing(false);
+    }
+  };
+
+  const handleAskAI = async (prompt: string) => {
+    const conversationText = formatChatForExport(true);
+    if (!prompt || !conversationText) return;
+
+    setIsAIProcessing(true);
+    const thinkingId = `msg-ai-thinking-${Date.now()}`;
+    addAssistantMessage(t('assistantThinking', lang), thinkingId);
+    
+    try {
+      const response = await getAIResponse(prompt, conversationText, lang);
+      addAssistantMessage(response, thinkingId);
+    } catch(error) {
+      console.error('AI Assistant failed:', error);
+      addAssistantMessage(t('aiError', lang), thinkingId);
+    } finally {
+      setIsAIProcessing(false);
     }
   };
 
@@ -680,6 +762,15 @@ const App: React.FC = () => {
         />
       )}
       
+       {showAIAssistant && (
+        <AIAssistantBar
+          onProofread={handleProofread}
+          onAskAI={handleAskAI}
+          isProcessing={isAIProcessing}
+          lang={lang}
+        />
+      )}
+
       <TranscriptionControls 
         isRecording={isRecording}
         isPaused={isPaused}
@@ -689,6 +780,8 @@ const App: React.FC = () => {
         onStopClick={handleStopClick}
         onPauseClick={handlePauseClick}
         onMicToggle={handleMicToggle}
+        onAIToggle={() => setShowAIAssistant(prev => !prev)}
+        isAIAssistantOpen={showAIAssistant}
         lang={lang}
       />
       {showExportModal && <ExportModal 

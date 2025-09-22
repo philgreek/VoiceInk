@@ -119,3 +119,18 @@ export const QuestionMarkCircleIcon: React.FC<SVGProps> = (props) => (
         <circle cx="12" cy="12" r="10" />
     </svg>
 );
+
+export const SparklesIcon: React.FC<SVGProps> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="m12 3-1.9 4.8-4.8 1.9 4.8 1.9 1.9 4.8 1.9-4.8 4.8-1.9-4.8-1.9Z"/>
+        <path d="M5 21v-3.5L3.5 16 5 14.5 6.5 16 5 17.5"/>
+        <path d="M19 21v-3.5L17.5 16 19 14.5 20.5 16 19 17.5"/>
+    </svg>
+);
+
+export const SendIcon: React.FC<SVGProps> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="m22 2-7 20-4-9-9-4Z"/>
+        <path d="M22 2 11 13"/>
+    </svg>
+);

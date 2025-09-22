@@ -20,6 +20,7 @@ const colors = [
   { name: 'Emerald', bubble: 'bg-emerald-600', avatar: 'bg-emerald-800' },
   { name: 'Amber', bubble: 'bg-amber-600', avatar: 'bg-amber-800' },
   { name: 'Rose', bubble: 'bg-rose-600', avatar: 'bg-rose-800' },
+  { name: 'Purple', bubble: 'bg-gradient-to-br from-purple-600 to-indigo-600', avatar: 'bg-purple-800' },
 ];
 
 const themes = [
@@ -33,7 +34,8 @@ const SpeakerSettings: React.FC<{
     profile: Settings['user'];
     onProfileChange: (newProfile: Settings['user']) => void;
     lang: Language;
-}> = ({ title, profile, onProfileChange, lang }) => (
+    isAssistant?: boolean;
+}> = ({ title, profile, onProfileChange, lang, isAssistant = false }) => (
     <div className="space-y-4 p-4 bg-[var(--bg-subtle)] rounded-lg border border-[var(--border-color)]">
         <h3 className="font-semibold text-[var(--text-primary)]">{title}</h3>
         <div>
@@ -44,15 +46,15 @@ const SpeakerSettings: React.FC<{
                 type="text"
                 id={`${title}-initial`}
                 value={profile.initial}
-                onChange={(e) => onProfileChange({ ...profile, initial: e.target.value.slice(0, 1).toUpperCase() })}
-                maxLength={1}
+                onChange={(e) => onProfileChange({ ...profile, initial: e.target.value.slice(0, 2).toUpperCase() })}
+                maxLength={2}
                 className="w-12 text-center bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none"
             />
         </div>
         <div>
             <span className="block text-sm font-medium text-[var(--text-secondary)] mb-2">{t('color', lang)}</span>
             <div className="flex flex-wrap gap-3">
-                {colors.map((color) => (
+                {(isAssistant ? colors.filter(c => c.name === 'Purple') : colors.filter(c => c.name !== 'Purple')).map((color) => (
                     <button
                         key={color.name}
                         onClick={() => onProfileChange({ ...profile, bubbleColor: color.bubble, avatarColor: color.avatar })}
@@ -78,15 +80,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onSave(localSettings);
   };
   
-  const handleUserChange = (newUserProfile: Settings['user']) => {
+  const handleProfileChange = (key: 'user' | 'interlocutor' | 'assistant', newProfile: Settings['user']) => {
     setLocalSettings(produce(draft => {
-        draft.user = newUserProfile;
-    }));
-  };
-
-  const handleInterlocutorChange = (newInterlocutorProfile: Settings['interlocutor']) => {
-    setLocalSettings(produce(draft => {
-        draft.interlocutor = newInterlocutorProfile;
+        draft[key] = newProfile;
     }));
   };
   
@@ -148,14 +144,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
            <SpeakerSettings 
                 title={t('you', lang)}
                 profile={localSettings.user}
-                onProfileChange={handleUserChange}
+                onProfileChange={(p) => handleProfileChange('user', p)}
                 lang={lang}
            />
             <SpeakerSettings 
                 title={t('speaker', lang)}
                 profile={localSettings.interlocutor}
-                onProfileChange={handleInterlocutorChange}
+                onProfileChange={(p) => handleProfileChange('interlocutor', p)}
                 lang={lang}
+           />
+           <SpeakerSettings 
+                title={t('assistant', lang)}
+                profile={localSettings.assistant}
+                onProfileChange={(p) => handleProfileChange('assistant', p)}
+                lang={lang}
+                isAssistant
            />
         </div>
          <div className="mt-8 flex justify-end gap-4">

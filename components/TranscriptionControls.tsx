@@ -1,5 +1,5 @@
 import React from 'react';
-import { MicIcon } from './icons';
+import { MicIcon, SparklesIcon } from './icons';
 import { t, Language } from '../utils/translations';
 
 interface TranscriptionControlsProps {
@@ -7,10 +7,12 @@ interface TranscriptionControlsProps {
   isPaused: boolean;
   isPushToTalkActive: boolean;
   isTranscribingFile: boolean;
+  isAIAssistantOpen: boolean;
   onStartClick: () => void;
   onStopClick: () => void;
   onPauseClick: () => void;
   onMicToggle: () => void;
+  onAIToggle: () => void;
   lang: Language;
 }
 
@@ -19,10 +21,12 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
   isPaused,
   isPushToTalkActive,
   isTranscribingFile,
+  isAIAssistantOpen,
   onStartClick,
   onStopClick,
   onPauseClick,
   onMicToggle,
+  onAIToggle,
   lang,
 }) => {
   const pushToTalkButtonClasses = isPushToTalkActive
@@ -32,6 +36,10 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
   const isPttDisabled = !isRecording || isPaused || isTranscribingFile;
 
   const baseButtonClasses = 'font-bold py-4 px-4 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg text-white text-xl flex items-center justify-center select-none';
+  
+  const aiButtonClasses = isAIAssistantOpen
+    ? 'bg-[var(--accent-assistant)] text-white'
+    : 'bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] text-white';
 
   return (
     <div 
@@ -42,9 +50,17 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
           data-tour-id="transcription-controls"
         >
           <button
+            onClick={onAIToggle}
+            className={`${baseButtonClasses} flex-grow-0 w-20 ${aiButtonClasses}`}
+            aria-label={t('toggleAIAssistant', lang)}
+          >
+            <SparklesIcon className="w-8 h-8"/>
+          </button>
+          
+          <button
             onClick={onMicToggle}
             disabled={isPttDisabled}
-            className={`${baseButtonClasses} flex-grow-0 w-24 ${
+            className={`${baseButtonClasses} flex-grow-0 w-20 ${
               !isPttDisabled ? pushToTalkButtonClasses : 'bg-[var(--bg-surface)] text-[var(--text-placeholder)] cursor-not-allowed'
             }`}
             aria-label={t('toggleUserMic', lang)}

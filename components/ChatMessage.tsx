@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, memo } from 'react';
 import type { Message, Settings } from '../types';
-import { EditIcon, CheckIcon, XIcon } from './icons';
+import { EditIcon, CheckIcon, XIcon, SparklesIcon } from './icons';
 import { t, Language } from '../utils/translations';
 
 interface ChatMessageProps {
@@ -59,9 +59,11 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   };
 
   const isUser = message.sender === 'user';
-  const profile = isUser ? settings.user : settings.interlocutor;
+  const isAssistant = message.sender === 'assistant';
+
+  const profile = isUser ? settings.user : (isAssistant ? settings.assistant : settings.interlocutor);
   
-  const activeClasses = isActive ? 'ring-2 ring-offset-2 ring-offset-[var(--bg-main)] ring-[var(--accent-primary)]' : '';
+  const activeClasses = isActive && !isAssistant ? 'ring-2 ring-offset-2 ring-offset-[var(--bg-main)] ring-[var(--accent-primary)]' : '';
   const bubbleClasses = `${profile.bubbleColor} ${isEditing ? 'ring-2 ring-red-500' : ''} ${activeClasses}`;
   const controlButtonClasses = "control-button p-1.5 rounded-full text-[var(--text-primary)] bg-[var(--bg-subtle)] hover:bg-[var(--bg-surface)] hover:text-white transition-all";
   
@@ -69,19 +71,20 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     <div className="flex justify-start items-start gap-3 group relative">
       <div className="relative flex-shrink-0">
           <button
-            onClick={(e) => { e.stopPropagation(); onChangeSpeaker(message.id); }}
-            className={`w-10 h-10 rounded-full ${profile.avatarColor} flex items-center justify-center font-bold text-slate-300 flex-shrink-0 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[var(--bg-main)] focus:ring-white`}
-            aria-label={t('changeSpeaker', lang)}
+            onClick={(e) => { e.stopPropagation(); if (!isAssistant) onChangeSpeaker(message.id); }}
+            disabled={isAssistant}
+            className={`w-10 h-10 rounded-full ${profile.avatarColor} flex items-center justify-center font-bold text-slate-300 flex-shrink-0 transition-transform ${!isAssistant ? 'hover:scale-110' : ''} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[var(--bg-main)] focus:ring-white disabled:cursor-default`}
+            aria-label={isAssistant ? t('assistant', lang) : t('changeSpeaker', lang)}
           >
-            {profile.initial}
+            {isAssistant ? <SparklesIcon className="w-6 h-6" /> : profile.initial}
           </button>
       </div>
       
       <div 
         ref={bubbleRef}
-        className={`relative py-3 px-4 text-white max-w-xs md:max-w-md lg:max-w-lg break-words shadow-md min-h-24 rounded-lg cursor-pointer ${bubbleClasses}`}
+        className={`relative py-3 px-4 text-white max-w-xs md:max-w-md lg:max-w-lg break-words shadow-md min-h-[4rem] rounded-lg ${!isAssistant ? 'cursor-pointer' : ''} ${bubbleClasses}`}
         style={{ width: isEditing && editWidth ? `${editWidth}px` : 'auto' }}
-        onClick={() => onSeekAudio(message.timestamp)}
+        onClick={() => !isAssistant && onSeekAudio(message.timestamp)}
       >
         {isEditing ? (
           <div className="flex flex-col gap-2">
@@ -104,7 +107,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           </div>
         )}
 
-         {!isEditing && message.text && !isFirstMessage && (
+         {!isEditing && message.text && !isFirstMessage && !isAssistant && (
             <button 
                 onClick={(e) => { e.stopPropagation(); onDeleteMessage(message.id); }} 
                 className="absolute top-1 right-1 p-0.5 rounded-full bg-black/20 text-white/60 hover:text-white/100 hover:bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity control-button"
@@ -115,7 +118,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
          )}
       </div>
       
-      {!isEditing && message.text && (
+      {!isEditing && message.text && !isAssistant && (
         <div className="absolute left-12 top-0 opacity-0 group-hover:opacity-100 transition-opacity">
              <button onClick={(e) => { e.stopPropagation(); handleEdit(); }} className={controlButtonClasses} aria-label={t('editMessage', lang)}>
                 <EditIcon className="w-5 h-5" />

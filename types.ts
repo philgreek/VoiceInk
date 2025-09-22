@@ -4,7 +4,7 @@ export interface Message {
   id: string;
   text: string;
   timestamp: number; // Seconds from the start of the recording
-  sender: 'user' | 'interlocutor';
+  sender: 'user' | 'interlocutor' | 'assistant';
 }
 
 export interface SpeakerProfile {
@@ -16,6 +16,7 @@ export interface SpeakerProfile {
 export interface Settings {
   user: SpeakerProfile;
   interlocutor: SpeakerProfile;
+  assistant: SpeakerProfile;
   theme: 'dark' | 'light' | 'neutral';
   language: string;
 }
@@ -26,7 +27,7 @@ export interface SelectionContext {
 }
 
 export interface Session {
-  id: string;
+  id:string;
   name: string;
   messages: Message[];
   settings: Settings;
