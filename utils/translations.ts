@@ -1,3 +1,4 @@
+
 export const translations = {
   en: {
     voiceInk: 'VoiceInk',
@@ -85,6 +86,11 @@ export const translations = {
     aiSubmit: 'Submit',
     assistantThinking: 'Assistant is thinking...',
     aiError: 'Sorry, I encountered an error. Please try again.',
+    apiKeyTitle: 'Gemini API Key Required',
+    apiKeyDescription: 'To use the AI features, please provide your Google AI API key. Your key is stored securely in your browser for this session only.',
+    apiKeyInputPlaceholder: 'Enter your API key here',
+    apiKeySave: 'Save Key',
+    apiKeyLinkText: 'Get your key from Google AI Studio',
     // Tour translations
     next: 'Next',
     prev: 'Back',
@@ -188,6 +194,11 @@ export const translations = {
     aiSubmit: 'Отправить',
     assistantThinking: 'Ассистент думает...',
     aiError: 'К сожалению, произошла ошибка. Пожалуйста, попробуйте еще раз.',
+    apiKeyTitle: 'Требуется API-ключ Gemini',
+    apiKeyDescription: 'Для использования AI-функций, пожалуйста, укажите ваш API-ключ от Google AI. Ваш ключ будет безопасно сохранен в браузере только на время этой сессии.',
+    apiKeyInputPlaceholder: 'Введите ваш API-ключ здесь',
+    apiKeySave: 'Сохранить ключ',
+    apiKeyLinkText: 'Получите ключ в Google AI Studio',
     // Tour translations
     next: 'Далее',
     prev: 'Назад',
@@ -291,6 +302,11 @@ export const translations = {
     aiSubmit: 'Enviar',
     assistantThinking: 'El asistente está pensando...',
     aiError: 'Lo siento, he encontrado un error. Por favor, inténtalo de nuevo.',
+    apiKeyTitle: 'Se requiere clave de API de Gemini',
+    apiKeyDescription: 'Para usar las funciones de IA, proporciona tu clave de API de Google AI. Tu clave se almacena de forma segura en tu navegador solo para esta sesión.',
+    apiKeyInputPlaceholder: 'Introduce tu clave de API aquí',
+    apiKeySave: 'Guardar Clave',
+    apiKeyLinkText: 'Obtén tu clave en Google AI Studio',
     // Tour translations
     next: 'Siguiente',
     prev: 'Anterior',
@@ -394,6 +410,11 @@ export const translations = {
     aiSubmit: 'Envoyer',
     assistantThinking: 'L\'assistant réfléchit...',
     aiError: 'Désolé, j\'ai rencontré une erreur. Veuillez réessayer.',
+    apiKeyTitle: 'Clé API Gemini requise',
+    apiKeyDescription: 'Pour utiliser les fonctionnalités d\'IA, veuillez fournir votre clé API Google AI. Votre clé est stockée en toute sécurité dans votre navigateur pour cette session uniquement.',
+    apiKeyInputPlaceholder: 'Entrez votre clé API ici',
+    apiKeySave: 'Enregistrer la clé',
+    apiKeyLinkText: 'Obtenez votre clé sur Google AI Studio',
     // Tour translations
     next: 'Suivant',
     prev: 'Précédent',
@@ -470,6 +491,7 @@ export const translations = {
     shareFail: 'Die Teilen-Funktion wird von deinem Browser nicht unterstützt. Versuche stattdessen, in die Zwischenablage zu kopieren.',
     noAudioTrackError: "Keine Audiospur gefunden. Bitte stelle sicher, dass du 'Systemaudio teilen' oder 'Tab-Audio teilen' aktiviert hast.",
     screenShareError: "Bildschirmfreigabe konnte nicht gestartet werden. Bitte erteile die erforderlichen Berechtigungen.",
+    audioTrackNotSharedError: "Audiospur nicht freigegeben. Bitte versuchen Sie es erneut und aktivieren Sie die Audiofreigabe für diesen Tab.",
     interface: "Oberfläche",
     theme: "Thema",
     language: "Sprache",
@@ -496,6 +518,11 @@ export const translations = {
     aiSubmit: 'Senden',
     assistantThinking: 'Assistent denkt nach...',
     aiError: 'Entschuldigung, ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.',
+    apiKeyTitle: 'Gemini API-Schlüssel erforderlich',
+    apiKeyDescription: 'Um die KI-Funktionen zu nutzen, geben Sie bitte Ihren Google AI API-Schlüssel an. Ihr Schlüssel wird nur für diese Sitzung sicher in Ihrem Browser gespeichert.',
+    apiKeyInputPlaceholder: 'Geben Sie hier Ihren API-Schlüssel ein',
+    apiKeySave: 'Schlüssel speichern',
+    apiKeyLinkText: 'Holen Sie sich Ihren Schlüssel vom Google AI Studio',
     // Tour translations
     next: 'Weiter',
     prev: 'Zurück',
@@ -599,6 +626,11 @@ export const translations = {
     aiSubmit: '送信',
     assistantThinking: 'アシスタントが考えています...',
     aiError: '申し訳ありませんが、エラーが発生しました。もう一度お試しください。',
+    apiKeyTitle: 'Gemini APIキーが必要です',
+    apiKeyDescription: 'AI機能を使用するには、Google AI APIキーを提供してください。キーはこのセッションの間だけ、お使いのブラウザに安全に保存されます。',
+    apiKeyInputPlaceholder: 'ここにAPIキーを入力してください',
+    apiKeySave: 'キーを保存',
+    apiKeyLinkText: 'Google AI Studioでキーを取得',
     // Tour translations
     next: '次へ',
     prev: '戻る',
@@ -702,6 +734,11 @@ export const translations = {
     aiSubmit: '提交',
     assistantThinking: '助手正在思考...',
     aiError: '抱歉，我遇到了一个错误。请再试一次。',
+    apiKeyTitle: '需要 Gemini API 密钥',
+    apiKeyDescription: '要使用 AI 功能，请输入您的 Google AI API 密钥。您的密钥仅在此会话期间安全地存储在您的浏览器中。',
+    apiKeyInputPlaceholder: '在此处输入您的 API 密钥',
+    apiKeySave: '保存密钥',
+    apiKeyLinkText: '从 Google AI Studio 获取您的密钥',
     // Tour translations
     next: '下一步',
     prev: '上一步',

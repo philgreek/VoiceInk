@@ -14,6 +14,7 @@ import { SessionNameModal } from './components/SessionNameModal';
 import { HistoryModal } from './components/HistoryModal';
 import { ContextualActionBar } from './components/ContextualActionBar';
 import { AIAssistantBar } from './components/AIAssistantBar';
+import { ApiKeyModal } from './components/ApiKeyModal';
 import { produce } from 'immer';
 import { t, Language } from './utils/translations';
 import { useHistoryState } from './hooks/useHistoryState';
@@ -76,6 +77,8 @@ const App: React.FC = () => {
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [isAIProcessing, setIsAIProcessing] = useState(false);
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
 
   const { sessions, saveSession, deleteSession, getSessionAudio } = useSessionHistory();
@@ -99,6 +102,13 @@ const App: React.FC = () => {
 
   const lang = settings.language as Language;
   
+  useEffect(() => {
+    const key = sessionStorage.getItem('geminiApiKey');
+    if (key) {
+      setGeminiApiKey(key);
+    }
+  }, []);
+
   const handleRecordingComplete = (audioBlob: Blob | null) => {
     if (messages.length > 0 && sessionName && audioBlob) {
         saveSession({ name: sessionName, messages, settings, hasAudio: true }, audioBlob);
@@ -666,6 +676,10 @@ const App: React.FC = () => {
   };
 
   const handleProofread = async () => {
+    if (!geminiApiKey) {
+      setShowApiKeyModal(true);
+      return;
+    }
     const conversationText = formatChatForExport(true);
     if (!conversationText) return;
 
@@ -674,7 +688,7 @@ const App: React.FC = () => {
     addAssistantMessage(t('assistantThinking', lang), thinkingId);
 
     try {
-      const correctedText = await getProofreadText(conversationText, lang);
+      const correctedText = await getProofreadText(geminiApiKey, conversationText, lang);
       addAssistantMessage(correctedText, thinkingId);
     } catch (error) {
       console.error('Proofreading failed:', error);
@@ -685,6 +699,10 @@ const App: React.FC = () => {
   };
 
   const handleAskAI = async (prompt: string) => {
+    if (!geminiApiKey) {
+      setShowApiKeyModal(true);
+      return;
+    }
     const conversationText = formatChatForExport(true);
     if (!prompt || !conversationText) return;
 
@@ -693,7 +711,7 @@ const App: React.FC = () => {
     addAssistantMessage(t('assistantThinking', lang), thinkingId);
     
     try {
-      const response = await getAIResponse(prompt, conversationText, lang);
+      const response = await getAIResponse(geminiApiKey, prompt, conversationText, lang);
       addAssistantMessage(response, thinkingId);
     } catch(error) {
       console.error('AI Assistant failed:', error);
@@ -702,6 +720,13 @@ const App: React.FC = () => {
       setIsAIProcessing(false);
     }
   };
+
+  const handleApiKeySave = (key: string) => {
+    setGeminiApiKey(key);
+    sessionStorage.setItem('geminiApiKey', key);
+    setShowApiKeyModal(false);
+  };
+
 
   useEffect(() => {
     const body = document.body;
@@ -831,6 +856,12 @@ const App: React.FC = () => {
         onDelete={deleteSession}
         lang={lang}
       />}
+      {showApiKeyModal && <ApiKeyModal 
+        onClose={() => setShowApiKeyModal(false)}
+        onSave={handleApiKeySave}
+        lang={lang}
+      />}
+
 
       {/* Hidden elements for functionality */}
       <audio ref={streamAudioRef} playsInline muted />
