@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { PlayIcon } from './icons'; // Assuming a generic Play/Pause icon component exists
 
@@ -83,7 +84,7 @@ export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(({ blo
   };
 
   return (
-    <div className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-3 border-t border-[var(--border-color)] sticky bottom-[104px] sm:bottom-[112px] z-20">
+    <div className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-3 border-t border-[var(--border-color)] sticky bottom-[104px] sm:bottom-[112px] z-30">
       <div className="flex items-center gap-4 max-w-lg mx-auto">
          <audio
           ref={(node) => {

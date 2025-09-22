@@ -19,7 +19,7 @@ export const ContextualActionBar: React.FC<ContextualActionBarProps> = ({ onSpli
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-20 p-2 sm:p-4 flex justify-center">
+    <div className="fixed bottom-0 left-0 right-0 z-40 p-2 sm:p-4 flex justify-center">
       <div className="bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-lg shadow-2xl border border-[var(--border-color)] flex items-center gap-4 p-2 transition-all animate-in slide-in-from-bottom-5 duration-300 max-w-md w-full">
         <div className="flex-grow pl-2">
             <p className="text-sm font-semibold truncate" title={context.text}>{t('splitSelection', lang)}</p>

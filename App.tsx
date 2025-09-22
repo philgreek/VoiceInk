@@ -256,13 +256,18 @@ const App: React.FC = () => {
     setLoadedSession(null);
   };
 
-  const initiateRecordingSession = () => {
+  const startRecordingFlow = (name: string) => {
+    setSessionName(name);
     setIsRecording(true);
     setIsPaused(false);
     setCurrentSpeaker('interlocutor');
     setIsPushToTalkActive(false);
     recordingStartTimeRef.current = Date.now();
-    setShowSessionNameModal(true);
+  };
+
+  const handleSessionNameConfirmed = (name: string) => {
+    setShowSessionNameModal(false);
+    startRecordingFlow(name);
   };
   
   const handleSourceSelected = async (source: 'microphone' | 'display') => {
@@ -290,18 +295,13 @@ const App: React.FC = () => {
         if (streamAudioRef.current) {
             streamAudioRef.current.srcObject = stream;
         }
-        initiateRecordingSession();
+        setShowSessionNameModal(true);
       } catch (err) {
         console.error(`Error starting ${source} media:`, err);
         if ((err as DOMException).name !== 'NotAllowedError') {
            alert(t('screenShareError', lang));
         }
       }
-  };
-
-  const handleSessionNameConfirmed = (name: string) => {
-    setShowSessionNameModal(false);
-    setSessionName(name);
   };
 
   const handleFileSelectClick = () => {
@@ -346,7 +346,7 @@ const App: React.FC = () => {
             fileAudioRef.current.src = URL.createObjectURL(audioFile);
             fileAudioRef.current.play();
         }
-        initiateRecordingSession();
+        setShowSessionNameModal(true);
     } catch (err) {
         console.error("Error starting display media for file transcription:", err);
         setAudioFile(null);
@@ -362,9 +362,10 @@ const App: React.FC = () => {
   };
 
   const handleStartClick = () => {
-    if (loadedSession) {
+    if (loadedSession) { // A session is already loaded, continue it
+      setSessionName(loadedSession.name);
       setShowSourceModal(true);
-    } else { 
+    } else { // Start a brand new session
       resetMessages([]);
       setLoadedSession(null);
       setShowSourceModal(true);
@@ -458,7 +459,7 @@ const App: React.FC = () => {
   const handleDeleteMessage = useCallback((messageId: string) => {
     setMessages(produce(draft => {
       const indexToDelete = draft.findIndex(m => m.id === messageId);
-      if (indexToDelete <= 0) { 
+      if (indexToDelete <= 0) { // Can't delete the first message or if not found
           if(indexToDelete === 0) draft.splice(indexToDelete, 1);
           return;
       }
@@ -628,7 +629,7 @@ const App: React.FC = () => {
 
 
   return (
-    <div className="h-full w-full flex flex-col bg-[var(--bg-main)] text-[var(--text-primary)]">
+    <div className="h-screen w-screen flex flex-col bg-[var(--bg-main)] text-[var(--text-primary)]">
       <Header 
         onExport={() => setShowExportModal(true)} 
         onClear={handleClear} 
@@ -711,20 +712,14 @@ const App: React.FC = () => {
         lang={lang}
       />}
       {showSessionNameModal && <SessionNameModal 
-        onClose={() => {
-          setShowSessionNameModal(false);
-          // If the user closes the name modal, we should stop the session that just started
-          if (isRecording) {
-            stopTranscriptionSession();
-          }
-        }}
+        onClose={() => setShowSessionNameModal(false)}
         onConfirm={handleSessionNameConfirmed}
         lang={lang}
       />}
       {showSourceModal && <SourceSelectionModal 
         onClose={() => {
             setShowSourceModal(false);
-            stopMediaStream(); 
+            stopMediaStream(); // Stop stream if user closes modal
         }}
         onSelectSource={handleSourceSelected}
         onFileSelectClick={handleFileSelectClick}

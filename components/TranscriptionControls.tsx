@@ -35,7 +35,7 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
 
   return (
     <div 
-      className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-4 sm:p-6 border-t border-[var(--border-color)] sticky bottom-0"
+      className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-4 sm:p-6 border-t border-[var(--border-color)] sticky bottom-0 z-20"
     >
         <div 
           className="flex items-stretch justify-center gap-4 max-w-lg mx-auto"

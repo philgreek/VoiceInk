@@ -2,15 +2,28 @@
   "name": "VoiceInk",
   "short_name": "VoiceInk",
   "description": "A real-time voice transcription application that captures conversations and displays them in a two-person dialogue format.",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
+  "scope": "/",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "icons": [
     {
-      "src": "icon.svg",
+      "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml"
+    },
+    {
+      "src": "/icon.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ]
 }
