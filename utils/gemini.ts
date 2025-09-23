@@ -17,7 +17,14 @@ export const getProofreadText = async (apiKey: string, text: string, lang: Langu
             model: "gemini-2.5-flash",
             contents: prompt,
         });
-        return response.text.trim();
+
+        const responseText = response.text;
+        if (typeof responseText !== 'string') {
+            console.error("Gemini API returned a non-text response for proofreading:", response);
+            throw new Error("Invalid response from AI. The response might have been blocked.");
+        }
+        return responseText.trim();
+
     } catch (error) {
         console.error("Error calling Gemini API for proofreading:", error);
         throw new Error("Failed to get proofread text from AI.");
@@ -38,14 +45,22 @@ export const getAIResponse = async (apiKey: string, userPrompt: string, context:
             User's question: "${userPrompt}"
         `;
         
+        // FIX: Moved `systemInstruction` into a `config` object as per the Gemini API guidelines.
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
                 systemInstruction: systemInstruction,
-            }
+            },
         });
-        return response.text.trim();
+        
+        const responseText = response.text;
+        if (typeof responseText !== 'string') {
+            console.error("Gemini API returned a non-text response for AI query:", response);
+            throw new Error("Invalid response from AI. The response might have been blocked.");
+        }
+        return responseText.trim();
+
     } catch (error) {
         console.error("Error calling Gemini API for AI response:", error);
         throw new Error("Failed to get response from AI.");
