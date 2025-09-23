@@ -26,6 +26,16 @@ export interface SelectionContext {
     text: string;
 }
 
+export interface ActionItem {
+  task: string;
+}
+
+export interface AnalysisResult {
+  summary: string;
+  actionItems: ActionItem[];
+  keyTopics: string[];
+}
+
 export interface Session {
   id:string;
   name: string;
@@ -33,6 +43,7 @@ export interface Session {
   settings: Settings;
   savedAt: string;
   hasAudio: boolean;
+  analysisResult: AnalysisResult | null;
 }
 
 export interface LoadedSession extends Session {

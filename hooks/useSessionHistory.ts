@@ -1,6 +1,6 @@
+
 import { useState, useCallback, useEffect } from 'react';
-import { Session, Message, Settings } from '../types';
-// FIX: Updated import to use the renamed `initDB` function from `utils/db`.
+import { Session, Message, Settings, AnalysisResult } from '../types';
 import { initDB } from '../utils/db';
 
 const MAX_HISTORY_ITEMS = 10;
@@ -10,9 +10,7 @@ export const useSessionHistory = () => {
 
   const fetchSessions = useCallback(async () => {
     try {
-      // FIX: Call renamed function `initDB`.
       const db = await initDB();
-      // Get all sessions, sort by savedAt descending, and limit to MAX_HISTORY_ITEMS
       const allSessions = await db.getAll('sessions');
       const sortedSessions = allSessions.sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
       setSessions(sortedSessions.slice(0, MAX_HISTORY_ITEMS));
@@ -27,10 +25,9 @@ export const useSessionHistory = () => {
   }, [fetchSessions]);
 
   const saveSession = useCallback(async (
-    sessionData: { name: string; messages: Message[]; settings: Settings, hasAudio: boolean },
+    sessionData: { name: string; messages: Message[]; settings: Settings, hasAudio: boolean, analysisResult: AnalysisResult | null },
     audioBlob: Blob | null
-  ) => {
-    // FIX: Call renamed function `initDB`.
+  ): Promise<Session> => {
     const db = await initDB();
     const newSession: Session = {
       ...sessionData,
@@ -43,10 +40,8 @@ export const useSessionHistory = () => {
         await db.put('audio', { id: newSession.id, blob: audioBlob });
     }
 
-    // After saving, re-fetch to update the list and apply the limit
     await fetchSessions();
     
-    // Prune old entries if history exceeds the limit
     const allSessions = await db.getAll('sessions');
     if (allSessions.length > MAX_HISTORY_ITEMS) {
         const sorted = allSessions.sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
@@ -60,22 +55,30 @@ export const useSessionHistory = () => {
         }));
         await tx.done;
     }
+    return newSession;
+  }, [fetchSessions]);
 
+  const updateSessionAnalysis = useCallback(async (sessionId: string, analysisResult: AnalysisResult) => {
+    const db = await initDB();
+    const session = await db.get('sessions', sessionId);
+    if (session) {
+      const updatedSession = { ...session, analysisResult };
+      await db.put('sessions', updatedSession);
+      await fetchSessions();
+    }
   }, [fetchSessions]);
 
   const deleteSession = useCallback(async (sessionId: string) => {
-    // FIX: Call renamed function `initDB`.
     const db = await initDB();
     const tx = db.transaction(['sessions', 'audio'], 'readwrite');
     await tx.objectStore('sessions').delete(sessionId);
     await tx.objectStore('audio').delete(sessionId);
     await tx.done;
-    await fetchSessions(); // Re-fetch to update UI
+    await fetchSessions();
   }, [fetchSessions]);
   
   const getSessionAudio = useCallback(async (sessionId: string): Promise<Blob | null> => {
       try {
-        // FIX: Call renamed function `initDB`.
         const db = await initDB();
         const audioRecord = await db.get('audio', sessionId);
         return audioRecord ? audioRecord.blob : null;
@@ -85,5 +88,5 @@ export const useSessionHistory = () => {
       }
   }, []);
 
-  return { sessions, saveSession, deleteSession, getSessionAudio };
+  return { sessions, saveSession, deleteSession, getSessionAudio, updateSessionAnalysis };
 };

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-import { Message, Session, Settings, LoadedSession, SelectionContext } from './types';
+import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, ActionItem } from './types';
 import { Header } from './components/Header';
 import { SessionBar } from './components/SessionBar';
 import { ChatWindow } from './components/ChatWindow';
@@ -13,7 +13,7 @@ import { FileInstructionsModal } from './components/FileInstructionsModal';
 import { SessionNameModal } from './components/SessionNameModal';
 import { HistoryModal } from './components/HistoryModal';
 import { ContextualActionBar } from './components/ContextualActionBar';
-import { AIAssistantBar } from './components/AIAssistantBar';
+import { InsightsPanel } from './components/InsightsPanel';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { produce } from 'immer';
 import { t, Language } from './utils/translations';
@@ -24,7 +24,7 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import html2canvas from 'html2canvas';
 import { AudioPlayer } from './components/AudioPlayer';
 import introJs from 'intro.js';
-import { getAIResponse, getProofreadText } from './utils/gemini';
+import { getSummary, getActionItems, getKeyTopics } from './utils/gemini';
 
 const defaultSettings: Settings = {
   user: {
@@ -75,13 +75,13 @@ const App: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
-  const [showAIAssistant, setShowAIAssistant] = useState(false);
-  const [isAIProcessing, setIsAIProcessing] = useState(false);
+  const [showInsightsPanel, setShowInsightsPanel] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [isAIProcessing, setIsAIProcessing] = useState({ summary: false, actionItems: false, topics: false });
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
-
-  const { sessions, saveSession, deleteSession, getSessionAudio } = useSessionHistory();
+  const { sessions, saveSession, deleteSession, getSessionAudio, updateSessionAnalysis } = useSessionHistory();
 
   const streamAudioRef = useRef<HTMLAudioElement>(null);
   const fileAudioRef = useRef<HTMLAudioElement>(null);
@@ -109,13 +109,18 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleRecordingComplete = (audioBlob: Blob | null) => {
-    if (messages.length > 0 && sessionName && audioBlob) {
-        saveSession({ name: sessionName, messages, settings, hasAudio: true }, audioBlob);
-    } else if (messages.length > 0 && sessionName) {
-        saveSession({ name: sessionName, messages, settings, hasAudio: false }, null);
+  const handleRecordingComplete = useCallback(async (audioBlob: Blob | null) => {
+    if (messages.length > 0 && sessionName) {
+        const newSession = await saveSession({ 
+            name: sessionName, 
+            messages, 
+            settings, 
+            hasAudio: !!audioBlob,
+            analysisResult: null,
+        }, audioBlob);
+        setLoadedSession({ ...newSession, audioBlob });
     }
-  };
+  }, [messages, sessionName, settings, saveSession]);
 
   const handleFinalTranscript = useCallback((transcript: string) => {
     if (!transcript) return;
@@ -246,6 +251,10 @@ const App: React.FC = () => {
     };
   }, [isRecording]);
 
+  useEffect(() => {
+    setAnalysisResult(loadedSession?.analysisResult || null);
+  }, [loadedSession]);
+
   const stopMediaStream = useCallback(() => {
     if (mediaStream) {
       mediaStream.getTracks().forEach(track => track.stop());
@@ -271,8 +280,7 @@ const App: React.FC = () => {
 
  const handleStopClick = () => {
     stopTranscriptionSession();
-    setSessionName('');
-    setLoadedSession(null);
+    // Keep loaded session active for analysis
   };
 
   const startRecordingFlow = (name: string) => {
@@ -381,12 +389,17 @@ const App: React.FC = () => {
   };
 
   const handleStartClick = () => {
-    if (loadedSession) { // A session is already loaded, continue it
-      setSessionName(loadedSession.name);
-      setShowSourceModal(true);
+    if (loadedSession) { 
+      if(window.confirm(t('startNewSessionConfirmation', lang))) {
+        resetMessages([]);
+        setLoadedSession(null);
+        setAnalysisResult(null);
+        setShowSourceModal(true);
+      }
     } else { // Start a brand new session
       resetMessages([]);
       setLoadedSession(null);
+      setAnalysisResult(null);
       setShowSourceModal(true);
     }
   };
@@ -411,6 +424,7 @@ const App: React.FC = () => {
           resetMessages([]);
           setSessionName('');
           setLoadedSession(null);
+          setAnalysisResult(null);
       }
   };
 
@@ -427,7 +441,6 @@ const App: React.FC = () => {
       if (msg) {
         if (msg.sender === 'user') msg.sender = 'interlocutor';
         else if (msg.sender === 'interlocutor') msg.sender = 'user';
-        // 'assistant' sender cannot be changed
       }
     }));
   }, [setMessages]);
@@ -482,7 +495,7 @@ const App: React.FC = () => {
   const handleDeleteMessage = useCallback((messageId: string) => {
     setMessages(produce(draft => {
       const indexToDelete = draft.findIndex(m => m.id === messageId);
-      if (indexToDelete <= 0) { // Can't delete the first message or if not found
+      if (indexToDelete <= 0) { 
           if(indexToDelete === 0) draft.splice(indexToDelete, 1);
           return;
       }
@@ -657,76 +670,83 @@ const App: React.FC = () => {
     }
   };
 
-  const addAssistantMessage = (text: string, id?: string) => {
-    setMessages(produce(draft => {
-      if (id) {
-        const existingMsg = draft.find(m => m.id === id);
-        if (existingMsg) {
-          existingMsg.text = text;
-          return;
-        }
-      }
-      draft.push({
-        id: id || `msg-ai-${Date.now()}`,
-        text,
-        sender: 'assistant',
-        timestamp: 0,
-      });
-    }));
-  };
-
-  const handleProofread = async () => {
-    if (!geminiApiKey) {
-      setShowApiKeyModal(true);
-      return;
-    }
-    const conversationText = formatChatForExport(true);
-    if (!conversationText) return;
-
-    setIsAIProcessing(true);
-    const thinkingId = `msg-ai-thinking-${Date.now()}`;
-    addAssistantMessage(t('assistantThinking', lang), thinkingId);
-
-    try {
-      const correctedText = await getProofreadText(geminiApiKey, conversationText, lang);
-      addAssistantMessage(correctedText, thinkingId);
-    } catch (error) {
-      console.error('Proofreading failed:', error);
-      addAssistantMessage(t('aiError', lang), thinkingId);
-    } finally {
-      setIsAIProcessing(false);
-    }
-  };
-
-  const handleAskAI = async (prompt: string) => {
-    if (!geminiApiKey) {
-      setShowApiKeyModal(true);
-      return;
-    }
-    const conversationText = formatChatForExport(true);
-    if (!prompt || !conversationText) return;
-
-    setIsAIProcessing(true);
-    const thinkingId = `msg-ai-thinking-${Date.now()}`;
-    addAssistantMessage(t('assistantThinking', lang), thinkingId);
-    
-    try {
-      const response = await getAIResponse(geminiApiKey, prompt, conversationText, lang);
-      addAssistantMessage(response, thinkingId);
-    } catch(error) {
-      console.error('AI Assistant failed:', error);
-      addAssistantMessage(t('aiError', lang), thinkingId);
-    } finally {
-      setIsAIProcessing(false);
-    }
-  };
-
   const handleApiKeySave = (key: string) => {
     setGeminiApiKey(key);
     sessionStorage.setItem('geminiApiKey', key);
     setShowApiKeyModal(false);
   };
 
+  const createEmptyAnalysisResult = (): AnalysisResult => ({
+    summary: '',
+    actionItems: [],
+    keyTopics: [],
+  });
+
+  const handleGenerateSummary = async () => {
+    if (!geminiApiKey) { setShowApiKeyModal(true); return; }
+    if (!loadedSession) return;
+    const conversationText = formatChatForExport(true);
+    if (!conversationText) return;
+    
+    setIsAIProcessing(prev => ({ ...prev, summary: true }));
+    try {
+        const summary = await getSummary(geminiApiKey, conversationText, lang);
+        const newResult = produce(analysisResult || createEmptyAnalysisResult(), draft => {
+            draft.summary = summary;
+        });
+        setAnalysisResult(newResult);
+        await updateSessionAnalysis(loadedSession.id, newResult);
+    } catch (error) {
+        console.error("Summary generation failed:", error);
+        alert(t('aiError', lang));
+    } finally {
+        setIsAIProcessing(prev => ({ ...prev, summary: false }));
+    }
+  };
+
+  const handleExtractActionItems = async () => {
+    if (!geminiApiKey) { setShowApiKeyModal(true); return; }
+    if (!loadedSession) return;
+    const conversationText = formatChatForExport(true);
+    if (!conversationText) return;
+    
+    setIsAIProcessing(prev => ({ ...prev, actionItems: true }));
+    try {
+        const items = await getActionItems(geminiApiKey, conversationText, lang);
+        const newResult = produce(analysisResult || createEmptyAnalysisResult(), draft => {
+            draft.actionItems = items;
+        });
+        setAnalysisResult(newResult);
+        await updateSessionAnalysis(loadedSession.id, newResult);
+    } catch (error) {
+        console.error("Action item extraction failed:", error);
+        alert(t('aiError', lang));
+    } finally {
+        setIsAIProcessing(prev => ({ ...prev, actionItems: false }));
+    }
+  };
+
+  const handleExtractTopics = async () => {
+    if (!geminiApiKey) { setShowApiKeyModal(true); return; }
+    if (!loadedSession) return;
+    const conversationText = formatChatForExport(true);
+    if (!conversationText) return;
+    
+    setIsAIProcessing(prev => ({ ...prev, topics: true }));
+    try {
+        const topics = await getKeyTopics(geminiApiKey, conversationText, lang);
+        const newResult = produce(analysisResult || createEmptyAnalysisResult(), draft => {
+            draft.keyTopics = topics;
+        });
+        setAnalysisResult(newResult);
+        await updateSessionAnalysis(loadedSession.id, newResult);
+    } catch (error) {
+        console.error("Key topics extraction failed:", error);
+        alert(t('aiError', lang));
+    } finally {
+        setIsAIProcessing(prev => ({ ...prev, topics: false }));
+    }
+  };
 
   useEffect(() => {
     const body = document.body;
@@ -734,81 +754,87 @@ const App: React.FC = () => {
     body.classList.add(`theme-${settings.theme}`);
   }, [settings.theme]);
 
-
   return (
     <div className="h-screen w-screen flex flex-col bg-[var(--bg-main)] text-[var(--text-primary)]">
-      <Header 
-        onExport={() => setShowExportModal(true)} 
-        onClear={handleClear} 
-        onSettings={() => setShowSettingsModal(true)}
-        onHistoryClick={() => setShowHistoryModal(true)}
-        onUndo={undo}
-        onRedo={redo}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onHelpClick={startTour}
-        lang={lang}
-      />
-      {(isRecording || sessionName) && (
-        <SessionBar sessionName={sessionName} />
-      )}
-      <ChatWindow 
-        ref={chatWindowRef}
-        messages={messages} 
-        interimTranscript={interimTranscript} 
-        currentSpeaker={isPushToTalkActive ? 'user' : 'interlocutor'} 
-        isRecording={isRecording}
-        isPaused={isPaused}
-        isTranscribingFile={isTranscribingFile}
-        settings={settings}
-        onUpdateMessage={handleUpdateMessage}
-        onChangeSpeaker={handleChangeSpeaker}
-        onDeleteMessage={handleDeleteMessage}
-        lang={lang}
-        playbackTime={playbackTime}
-        onSeekAudio={handleSeekAudio}
-      />
-      
-      {selectionContext && (
-        <ContextualActionBar 
-            onSplit={handleSplitMessage}
-            onClear={() => setSelectionContext(null)}
-            context={selectionContext}
+      <div className="flex flex-grow overflow-hidden">
+        <div className="flex-grow flex flex-col">
+          <Header 
+            onExport={() => setShowExportModal(true)} 
+            onClear={handleClear} 
+            onSettings={() => setShowSettingsModal(true)}
+            onHistoryClick={() => setShowHistoryModal(true)}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onHelpClick={startTour}
+            lang={lang}
+          />
+          {(isRecording || sessionName) && (
+            <SessionBar sessionName={sessionName} />
+          )}
+          <ChatWindow 
+            ref={chatWindowRef}
+            messages={messages} 
+            interimTranscript={interimTranscript} 
+            currentSpeaker={isPushToTalkActive ? 'user' : 'interlocutor'} 
+            isRecording={isRecording}
+            isPaused={isPaused}
+            isTranscribingFile={isTranscribingFile}
             settings={settings}
+            onUpdateMessage={handleUpdateMessage}
+            onChangeSpeaker={handleChangeSpeaker}
+            onDeleteMessage={handleDeleteMessage}
+            lang={lang}
+            playbackTime={playbackTime}
+            onSeekAudio={handleSeekAudio}
+          />
+          
+          {selectionContext && (
+            <ContextualActionBar 
+                onSplit={handleSplitMessage}
+                onClear={() => setSelectionContext(null)}
+                context={selectionContext}
+                settings={settings}
+                lang={lang}
+            />
+          )}
+          
+          {loadedSession?.audioBlob && (
+            <AudioPlayer 
+                ref={audioPlayerRef}
+                blob={loadedSession.audioBlob} 
+                onTimeUpdate={setPlaybackTime} 
+            />
+          )}
+
+          <TranscriptionControls 
+            isRecording={isRecording}
+            isPaused={isPaused}
+            isPushToTalkActive={isPushToTalkActive}
+            isTranscribingFile={isTranscribingFile}
+            onStartClick={handleStartClick}
+            onStopClick={handleStopClick}
+            onPauseClick={handlePauseClick}
+            onMicToggle={handleMicToggle}
+            onAIToggle={() => setShowInsightsPanel(prev => !prev)}
+            isAIAssistantOpen={showInsightsPanel}
+            lang={lang}
+          />
+        </div>
+        <InsightsPanel
+            isOpen={showInsightsPanel}
+            onClose={() => setShowInsightsPanel(false)}
+            onGenerateSummary={handleGenerateSummary}
+            onExtractActionItems={handleExtractActionItems}
+            onExtractTopics={handleExtractTopics}
+            analysisResult={analysisResult}
+            isProcessing={isAIProcessing}
+            isSessionLoaded={!!loadedSession}
             lang={lang}
         />
-      )}
-      
-      {loadedSession?.audioBlob && (
-        <AudioPlayer 
-            ref={audioPlayerRef}
-            blob={loadedSession.audioBlob} 
-            onTimeUpdate={setPlaybackTime} 
-        />
-      )}
-      
-       {showAIAssistant && (
-        <AIAssistantBar
-          onProofread={handleProofread}
-          onAskAI={handleAskAI}
-          isProcessing={isAIProcessing}
-          lang={lang}
-        />
-      )}
+      </div>
 
-      <TranscriptionControls 
-        isRecording={isRecording}
-        isPaused={isPaused}
-        isPushToTalkActive={isPushToTalkActive}
-        isTranscribingFile={isTranscribingFile}
-        onStartClick={handleStartClick}
-        onStopClick={handleStopClick}
-        onPauseClick={handlePauseClick}
-        onMicToggle={handleMicToggle}
-        onAIToggle={() => setShowAIAssistant(prev => !prev)}
-        isAIAssistantOpen={showAIAssistant}
-        lang={lang}
-      />
       {showExportModal && <ExportModal 
         onClose={() => setShowExportModal(false)}
         onSaveAsTxt={handleSaveAsTxt}
@@ -837,7 +863,7 @@ const App: React.FC = () => {
       {showSourceModal && <SourceSelectionModal 
         onClose={() => {
             setShowSourceModal(false);
-            stopMediaStream(); // Stop stream if user closes modal
+            stopMediaStream();
         }}
         onSelectSource={handleSourceSelected}
         onFileSelectClick={handleFileSelectClick}
@@ -861,7 +887,6 @@ const App: React.FC = () => {
         onSave={handleApiKeySave}
         lang={lang}
       />}
-
 
       {/* Hidden elements for functionality */}
       <audio ref={streamAudioRef} playsInline muted />

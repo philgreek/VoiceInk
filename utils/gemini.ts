@@ -1,68 +1,114 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { Language } from "./translations";
+import { ActionItem } from "../types";
 
-export const getProofreadText = async (apiKey: string, text: string, lang: Language): Promise<string> => {
+const getAIClient = (apiKey: string) => new GoogleGenAI({ apiKey });
+
+const handleAIError = (error: unknown, context: string): never => {
+    console.error(`Error calling Gemini API for ${context}:`, error);
+    throw new Error(`Failed to get ${context} from AI.`);
+};
+
+const safelyGetText = (response: any): string => {
+    const text = response?.text;
+    if (typeof text === 'string') {
+        return text.trim();
+    }
+    console.error("Gemini API returned a non-text or invalid response:", response);
+    throw new Error("Invalid response from AI. The response might have been blocked.");
+};
+
+export const getSummary = async (apiKey: string, text: string, lang: Language): Promise<string> => {
     try {
-        const ai = new GoogleGenAI({ apiKey });
-        const prompt = `Proofread and correct the following conversation transcript for spelling, grammar, and punctuation. The language of the transcript is ${lang}. Only return the fully corrected text. Do not add any introductory phrases like "Here is the corrected text:".
-    
-    Transcript:
-    ---
-    ${text}
-    ---
-    `;
+        const ai = getAIClient(apiKey);
+        const prompt = `Generate a concise summary of the following conversation transcript. The language of the transcript is ${lang}. The summary should capture the main points and outcomes.
+
+        Transcript:
+        ---
+        ${text}
+        ---
+        `;
 
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
         });
-
-        const responseText = response.text;
-        if (typeof responseText !== 'string') {
-            console.error("Gemini API returned a non-text response for proofreading:", response);
-            throw new Error("Invalid response from AI. The response might have been blocked.");
-        }
-        return responseText.trim();
-
+        
+        return safelyGetText(response);
     } catch (error) {
-        console.error("Error calling Gemini API for proofreading:", error);
-        throw new Error("Failed to get proofread text from AI.");
+        handleAIError(error, 'summary');
     }
 };
 
-export const getAIResponse = async (apiKey: string, userPrompt: string, context: string, lang: Language): Promise<string> => {
+export const getActionItems = async (apiKey: string, text: string, lang: Language): Promise<ActionItem[]> => {
     try {
-        const ai = new GoogleGenAI({ apiKey });
-        const systemInstruction = `You are a helpful AI assistant analyzing a conversation transcript. The user will ask you a question about it. The language of the conversation is ${lang}. Provide a concise and helpful response.`;
+        const ai = getAIClient(apiKey);
+        const prompt = `Analyze the following conversation transcript in ${lang} and extract all specific action items, tasks, or follow-ups mentioned.
 
-        const prompt = `
-            Conversation Transcript:
-            ---
-            ${context}
-            ---
-
-            User's question: "${userPrompt}"
+        Transcript:
+        ---
+        ${text}
+        ---
         `;
-        
-        // FIX: Moved `systemInstruction` into a `config` object as per the Gemini API guidelines.
+
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
-                systemInstruction: systemInstruction,
-            },
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            task: {
+                                type: Type.STRING,
+                                description: "A specific action item or task to be completed."
+                            },
+                        },
+                        required: ["task"],
+                    },
+                },
+            }
         });
         
-        const responseText = response.text;
-        if (typeof responseText !== 'string') {
-            console.error("Gemini API returned a non-text response for AI query:", response);
-            throw new Error("Invalid response from AI. The response might have been blocked.");
-        }
-        return responseText.trim();
-
+        const jsonText = safelyGetText(response);
+        return JSON.parse(jsonText);
     } catch (error) {
-        console.error("Error calling Gemini API for AI response:", error);
-        throw new Error("Failed to get response from AI.");
+        handleAIError(error, 'action items');
+    }
+};
+
+export const getKeyTopics = async (apiKey: string, text: string, lang: Language): Promise<string[]> => {
+    try {
+        const ai = getAIClient(apiKey);
+        const prompt = `Analyze the following conversation transcript in ${lang} and identify the main topics or themes discussed. Return a list of 3-5 key topics.
+
+        Transcript:
+        ---
+        ${text}
+        ---
+        `;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                 responseMimeType: "application/json",
+                 responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.STRING,
+                        description: "A key topic or theme from the conversation."
+                    },
+                 },
+            }
+        });
+
+        const jsonText = safelyGetText(response);
+        return JSON.parse(jsonText);
+    } catch (error) {
+        handleAIError(error, 'key topics');
     }
 };
