@@ -1,5 +1,4 @@
 
-
 export interface Message {
   id: string;
   text: string;
@@ -35,6 +34,22 @@ export interface AnalysisResult {
   actionItems: ActionItem[];
   keyTopics: string[];
 }
+
+export type TextStyle = 
+  | 'default' 
+  | 'meeting' 
+  | 'lecture' 
+  | 'dialogue' 
+  | 'interview' 
+  | 'consultation' 
+  | 'podcast' 
+  | 'blog' 
+  | 'business' 
+  | 'literary' 
+  | 'psychological' 
+  | 'legal' 
+  | 'scientific';
+
 
 export interface Session {
   id:string;

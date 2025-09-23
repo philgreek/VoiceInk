@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, ActionItem } from './types';
+import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle } from './types';
 import { Header } from './components/Header';
 import { SessionBar } from './components/SessionBar';
 import { ChatWindow } from './components/ChatWindow';
@@ -15,6 +15,7 @@ import { HistoryModal } from './components/HistoryModal';
 import { ContextualActionBar } from './components/ContextualActionBar';
 import { InsightsPanel } from './components/InsightsPanel';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { ProofreadResultModal } from './components/ProofreadResultModal';
 import { produce } from 'immer';
 import { t, Language } from './utils/translations';
 import { useHistoryState } from './hooks/useHistoryState';
@@ -24,7 +25,7 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import html2canvas from 'html2canvas';
 import { AudioPlayer } from './components/AudioPlayer';
 import introJs from 'intro.js';
-import { getSummary, getActionItems, getKeyTopics } from './utils/gemini';
+import { getSummary, getActionItems, getKeyTopics, getProofreadAndStyledText } from './utils/gemini';
 
 const defaultSettings: Settings = {
   user: {
@@ -77,9 +78,12 @@ const App: React.FC = () => {
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
   const [showInsightsPanel, setShowInsightsPanel] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [isAIProcessing, setIsAIProcessing] = useState({ summary: false, actionItems: false, topics: false });
+  const [isAIProcessing, setIsAIProcessing] = useState({ summary: false, actionItems: false, topics: false, proofread: false });
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [selectedTextStyle, setSelectedTextStyle] = useState<TextStyle>('default');
+  const [showProofreadModal, setShowProofreadModal] = useState(false);
+  const [proofreadResult, setProofreadResult] = useState('');
 
   const { sessions, saveSession, deleteSession, getSessionAudio, updateSessionAnalysis } = useSessionHistory();
 
@@ -748,6 +752,25 @@ const App: React.FC = () => {
     }
   };
 
+  const handleProofreadAndStyle = async () => {
+    if (!geminiApiKey) { setShowApiKeyModal(true); return; }
+    if (!loadedSession) return;
+    const conversationText = formatChatForExport(true);
+    if (!conversationText) return;
+
+    setIsAIProcessing(prev => ({ ...prev, proofread: true }));
+    try {
+        const result = await getProofreadAndStyledText(geminiApiKey, conversationText, selectedTextStyle, lang);
+        setProofreadResult(result);
+        setShowProofreadModal(true);
+    } catch (error) {
+        console.error("Proofread & Style failed:", error);
+        alert(t('aiError', lang));
+    } finally {
+        setIsAIProcessing(prev => ({ ...prev, proofread: false }));
+    }
+  };
+
   useEffect(() => {
     const body = document.body;
     body.className = '';
@@ -832,6 +855,9 @@ const App: React.FC = () => {
             isProcessing={isAIProcessing}
             isSessionLoaded={!!loadedSession}
             lang={lang}
+            onProofreadAndStyle={handleProofreadAndStyle}
+            selectedStyle={selectedTextStyle}
+            onStyleChange={setSelectedTextStyle}
         />
       </div>
 
@@ -885,6 +911,11 @@ const App: React.FC = () => {
       {showApiKeyModal && <ApiKeyModal 
         onClose={() => setShowApiKeyModal(false)}
         onSave={handleApiKeySave}
+        lang={lang}
+      />}
+      {showProofreadModal && <ProofreadResultModal
+        result={proofreadResult}
+        onClose={() => setShowProofreadModal(false)}
         lang={lang}
       />}
 

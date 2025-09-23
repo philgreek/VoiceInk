@@ -1,8 +1,8 @@
 
 import React from 'react';
-import { AnalysisResult } from '../types';
+import { AnalysisResult, TextStyle } from '../types';
 import { t, Language } from '../utils/translations';
-import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon } from './icons';
+import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon, EditIcon } from './icons';
 
 interface InsightsPanelProps {
   isOpen: boolean;
@@ -11,10 +11,18 @@ interface InsightsPanelProps {
   onExtractActionItems: () => void;
   onExtractTopics: () => void;
   analysisResult: AnalysisResult | null;
-  isProcessing: { summary: boolean; actionItems: boolean; topics: boolean };
+  isProcessing: { summary: boolean; actionItems: boolean; topics: boolean; proofread: boolean };
   isSessionLoaded: boolean;
   lang: Language;
+  onProofreadAndStyle: () => void;
+  selectedStyle: TextStyle;
+  onStyleChange: (style: TextStyle) => void;
 }
+
+const textStyles: TextStyle[] = [
+    'default', 'meeting', 'lecture', 'dialogue', 'interview', 'consultation', 
+    'podcast', 'blog', 'business', 'literary', 'psychological', 'legal', 'scientific'
+];
 
 const LoadingSpinner: React.FC = () => (
     <div className="w-5 h-5 border-2 border-[var(--text-secondary)] border-t-transparent rounded-full animate-spin"></div>
@@ -42,6 +50,9 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
   isProcessing,
   isSessionLoaded,
   lang,
+  onProofreadAndStyle,
+  selectedStyle,
+  onStyleChange,
 }) => {
   if (!isOpen) return null;
 
@@ -107,6 +118,31 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                             {isProcessing.topics ? <><LoadingSpinner /> {t('extractingKeyTopics', lang)}</> : t('extractKeyTopics', lang)}
                         </button>
                     )}
+                </Section>
+
+                <div className="border-t border-[var(--border-color)] my-4"></div>
+
+                <Section title={t('textEditor', lang)} icon={<EditIcon className="w-5 h-5"/>}>
+                   <div className="px-3 py-2 space-y-3">
+                        <div>
+                            <label htmlFor="style-select" className="text-sm text-[var(--text-secondary)] mb-1 block">{t('selectStyle', lang)}</label>
+                            <select
+                                id="style-select"
+                                value={selectedStyle}
+                                onChange={(e) => onStyleChange(e.target.value as TextStyle)}
+                                className="w-full bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none"
+                            >
+                                {textStyles.map(style => (
+                                    <option key={style} value={style}>
+                                        {t(`style${style.charAt(0).toUpperCase() + style.slice(1)}` as any, lang)}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <button onClick={onProofreadAndStyle} disabled={isProcessing.proofread} className="flex items-center justify-center gap-2 w-full p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors disabled:opacity-70 disabled:cursor-wait">
+                            {isProcessing.proofread ? <><LoadingSpinner /> {t('generatingStyledText', lang)}</> : t('generateStyledText', lang)}
+                        </button>
+                   </div>
                 </Section>
             </>
         )}
