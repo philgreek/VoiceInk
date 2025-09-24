@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { Message } from '../types';
 
 // This is a Vercel Serverless Function
@@ -28,61 +28,29 @@ export default async function handler(req: any, res: any) {
       },
     };
 
+    // Simplified prompt: Just transcribe the audio to plain text.
     const textPart = {
-      text: `
-        Accurately transcribe the audio recording.
-        The audio contains a conversation between one or more speakers.
-        Your task is to segment the conversation by speaker and provide a transcription for each segment.
-        The output must be a valid JSON array of objects. Each object represents a single continuous utterance from one speaker and must have two properties:
-        1. "speaker": A generic string label for the speaker, like "SPEAKER_1", "SPEAKER_2", etc. Use these labels consistently for the same speaker.
-        2. "text": A string containing the transcribed text for that segment.
-        Do not add any text, explanations, or markdown formatting outside of the JSON array. The entire response should be the JSON array itself.
-      `,
+      text: `Accurately transcribe the audio recording into a single block of text. Do not add any speaker labels, timestamps, or formatting.`,
     };
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: { parts: [audioPart, textPart] },
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              speaker: { type: Type.STRING },
-              text: { type: Type.STRING },
-            },
-            required: ['speaker', 'text'],
-          },
-        },
-      },
     });
 
-    const jsonText = response.text.trim();
-    const rawMessages: { speaker: string; text: string }[] = JSON.parse(jsonText);
+    const transcription = response.text.trim();
     
-    // Post-process to fit the frontend's Message type
-    const speakerMap = new Map<string, 'user' | 'interlocutor'>();
-    let nextSpeakerRole: 'interlocutor' | 'user' = 'interlocutor';
-
-    const messagesWithTimestamps: Message[] = rawMessages.map((rawMsg, index) => {
-      if (!speakerMap.has(rawMsg.speaker)) {
-        speakerMap.set(rawMsg.speaker, nextSpeakerRole);
-        nextSpeakerRole = nextSpeakerRole === 'interlocutor' ? 'user' : 'interlocutor';
+    // Create a single message with the full transcription.
+    const finalMessages: Message[] = [
+      {
+        id: `msg-${Date.now()}`,
+        sender: 'interlocutor', // Default to 'interlocutor' as we can't determine the speaker.
+        text: transcription,
+        timestamp: 0,
       }
-      
-      const sender = speakerMap.get(rawMsg.speaker)!;
+    ];
 
-      return {
-        id: `msg-${Date.now()}-${index}`,
-        sender,
-        text: rawMsg.text,
-        timestamp: index * 5, // Approximate timestamp
-      };
-    });
-
-    return res.status(200).json(messagesWithTimestamps);
+    return res.status(200).json(finalMessages);
 
   } catch (error) {
     console.error('Error in /api/transcribe:', error);
