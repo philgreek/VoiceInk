@@ -1,5 +1,6 @@
+
 import React, { useRef, useEffect, forwardRef } from 'react';
-import type { Message, Settings } from '../types';
+import type { Message, Settings, Entity } from '../types';
 import { MicIcon, FileAudioIcon } from './icons';
 import { ChatMessage } from './ChatMessage';
 import { t, Language } from '../utils/translations';
@@ -18,6 +19,7 @@ interface ChatWindowProps {
   lang: Language;
   playbackTime: number;
   onSeekAudio: (time: number) => void;
+  entities?: Entity[];
 }
 
 const MessageList: React.FC<{
@@ -29,7 +31,8 @@ const MessageList: React.FC<{
   lang: Language;
   playbackTime: number;
   onSeekAudio: (time: number) => void;
-}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, lang, playbackTime, onSeekAudio }) => {
+  entities?: Entity[];
+}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, lang, playbackTime, onSeekAudio, entities }) => {
   return (
     <>
       {messages.map((msg, index) => {
@@ -48,6 +51,7 @@ const MessageList: React.FC<{
               lang={lang}
               isActive={isActive}
               onSeekAudio={onSeekAudio}
+              entities={entities}
             />
         );
       })}
@@ -91,6 +95,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
     lang,
     playbackTime,
     onSeekAudio,
+    entities,
 }, ref) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
@@ -136,6 +141,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
             lang={lang}
             playbackTime={playbackTime}
             onSeekAudio={onSeekAudio}
+            entities={entities}
         />
         {interimTranscript && (
           <InterimBubble text={interimTranscript} sender={currentSpeaker} settings={settings} />

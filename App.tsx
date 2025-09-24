@@ -1,7 +1,8 @@
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle } from './types';
+import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle, AIAgent, AIChatMessage, Entity } from './types';
 import { Header } from './components/Header';
 import { SessionBar } from './components/SessionBar';
 import { ChatWindow } from './components/ChatWindow';
@@ -23,7 +24,7 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import html2canvas from 'html2canvas';
 import { AudioPlayer } from './components/AudioPlayer';
 import introJs from 'intro.js';
-import { getSummary, getActionItems, getKeyTopics, getProofreadAndStyledText } from './utils/gemini';
+import { getSummary, getActionItems, getKeyTopics, getProofreadAndStyledText, getAgentResponse, extractEntities } from './utils/gemini';
 import { NotebookLMInstructionsModal } from './components/NotebookLMInstructionsModal';
 
 const defaultSettings: Settings = {
@@ -75,11 +76,13 @@ const App: React.FC = () => {
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
   const [showInsightsPanel, setShowInsightsPanel] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [isAIProcessing, setIsAIProcessing] = useState({ summary: false, actionItems: false, topics: false, proofread: false });
+  const [isAIProcessing, setIsAIProcessing] = useState({ summary: false, actionItems: false, topics: false, proofread: false, agent: false, entities: false });
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [selectedTextStyle, setSelectedTextStyle] = useState<TextStyle>('default');
   const [showNotebookLMInstructionsModal, setShowNotebookLMInstructionsModal] = useState(false);
+  const [selectedAIAgents, setSelectedAIAgents] = useState<AIAgent[]>([]);
+  const [aiChatHistory, setAiChatHistory] = useState<AIChatMessage[]>([]);
 
   const { sessions, saveSession, deleteSession, getSessionAudio, updateSessionAnalysis } = useSessionHistory();
 
@@ -252,6 +255,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setAnalysisResult(loadedSession?.analysisResult || null);
+    setAiChatHistory(loadedSession?.analysisResult?.aiChatHistory || []);
   }, [loadedSession]);
 
   const stopMediaStream = useCallback(() => {
@@ -732,6 +736,8 @@ const App: React.FC = () => {
     summary: '',
     actionItems: [],
     keyTopics: [],
+    entities: [],
+    aiChatHistory: [],
   });
 
   const handleGenerateSummary = async () => {
@@ -831,6 +837,64 @@ const App: React.FC = () => {
     await updateSessionAnalysis(loadedSession.id, newResult);
   };
 
+  const handleAskAIAgent = async (prompt: string) => {
+    if (!geminiApiKey) { setShowApiKeyModal(true); return; }
+    if (!loadedSession || selectedAIAgents.length === 0) return;
+    const conversationText = formatChatForExport(true);
+    if (!conversationText) return;
+
+// FIX: Explicitly type the new history array to prevent type widening of the 'role' property.
+    const currentChatHistory: AIChatMessage[] = [...aiChatHistory, { role: 'user', parts: [{ text: prompt }] }];
+    setAiChatHistory(currentChatHistory);
+    setIsAIProcessing(prev => ({ ...prev, agent: true }));
+
+    try {
+// FIX: Pass the updated chat history including the latest user prompt.
+      const response = await getAgentResponse(geminiApiKey, conversationText, selectedAIAgents, lang, currentChatHistory);
+// FIX: Explicitly type the new history array.
+      const newHistory: AIChatMessage[] = [...currentChatHistory, { role: 'model', parts: [{ text: response }] }];
+      setAiChatHistory(newHistory);
+      
+      const newResult = produce(analysisResult || createEmptyAnalysisResult(), draft => {
+          draft.aiChatHistory = newHistory;
+      });
+      setAnalysisResult(newResult);
+      await updateSessionAnalysis(loadedSession.id, newResult);
+
+    } catch (error) {
+      console.error("AI Agent chat failed:", error);
+      alert(t('aiError', lang));
+// FIX: Explicitly type the new history array.
+      const newHistory: AIChatMessage[] = currentChatHistory.slice(0, -1); // Remove user prompt on error
+      setAiChatHistory(newHistory);
+    } finally {
+      setIsAIProcessing(prev => ({ ...prev, agent: false }));
+    }
+  };
+
+  const handleExtractEntities = async () => {
+    if (!geminiApiKey) { setShowApiKeyModal(true); return; }
+    if (!loadedSession) return;
+    const conversationText = formatChatForExport(true);
+    if (!conversationText) return;
+
+    setIsAIProcessing(prev => ({ ...prev, entities: true }));
+    try {
+      const entities = await extractEntities(geminiApiKey, conversationText, lang);
+      const newResult = produce(analysisResult || createEmptyAnalysisResult(), draft => {
+          draft.entities = entities;
+      });
+      setAnalysisResult(newResult);
+      await updateSessionAnalysis(loadedSession.id, newResult);
+    } catch (error) {
+      console.error("Entity extraction failed:", error);
+      alert(t('aiError', lang));
+    } finally {
+      setIsAIProcessing(prev => ({ ...prev, entities: false }));
+    }
+  };
+
+
   type AnalysisType = 'summary' | 'actionItems' | 'keyTopics';
   type ExportFormat = 'copy' | 'txt' | 'notebooklm';
 
@@ -926,6 +990,7 @@ const App: React.FC = () => {
             lang={lang}
             playbackTime={playbackTime}
             onSeekAudio={handleSeekAudio}
+            entities={analysisResult?.entities}
           />
           
           {selectionContext && (
@@ -975,6 +1040,11 @@ const App: React.FC = () => {
             onProofreadAndStyle={handleProofreadAndStyle}
             selectedStyle={selectedTextStyle}
             onStyleChange={setSelectedTextStyle}
+            onAskAIAgent={handleAskAIAgent}
+            aiChatHistory={aiChatHistory}
+            selectedAIAgents={selectedAIAgents}
+            onSelectedAIAgentsChange={setSelectedAIAgents}
+            onExtractEntities={handleExtractEntities}
         />
       </div>
 

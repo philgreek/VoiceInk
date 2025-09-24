@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect, memo } from 'react';
-import type { Message, Settings } from '../types';
+
+import React, { useState, useRef, useEffect, memo, useMemo } from 'react';
+import type { Message, Settings, Entity, EntityType } from '../types';
 import { EditIcon, CheckIcon, XIcon, SparklesIcon } from './icons';
 import { t, Language } from '../utils/translations';
 
@@ -13,10 +14,64 @@ interface ChatMessageProps {
   lang: Language;
   isActive: boolean;
   onSeekAudio: (time: number) => void;
+  entities?: Entity[];
 }
 
+const entityColors: Record<EntityType, string> = {
+    PERSON: 'border-b-2 border-blue-400',
+    ORGANIZATION: 'border-b-2 border-yellow-400',
+    DATE: 'border-b-2 border-green-400',
+    LOCATION: 'border-b-2 border-pink-400',
+    MONEY: 'border-b-2 border-teal-400',
+    OTHER: 'border-b-2 border-gray-400',
+};
+
+const renderTextWithEntities = (text: string, entities: Entity[] | undefined, lang: Language): React.ReactNode => {
+    if (!entities || entities.length === 0) {
+        return text;
+    }
+
+    const sortedEntities = [...entities]
+        .filter(e => text.includes(e.text))
+        .sort((a, b) => text.indexOf(a.text) - text.indexOf(b.text));
+
+    let lastIndex = 0;
+    const parts: React.ReactNode[] = [];
+
+    sortedEntities.forEach((entity, i) => {
+        const startIndex = text.indexOf(entity.text, lastIndex);
+        if (startIndex === -1) return;
+
+        // Add the text before the entity
+        if (startIndex > lastIndex) {
+            parts.push(text.substring(lastIndex, startIndex));
+        }
+
+        // Add the highlighted entity
+        parts.push(
+            <span
+                key={`${entity.text}-${i}`}
+                className={`cursor-pointer rounded-sm px-0.5 ${entityColors[entity.type]}`}
+                title={t(`entity${entity.type}` as any, lang)}
+            >
+                {entity.text}
+            </span>
+        );
+
+        lastIndex = startIndex + entity.text.length;
+    });
+
+    // Add any remaining text
+    if (lastIndex < text.length) {
+        parts.push(text.substring(lastIndex));
+    }
+
+    return parts;
+};
+
+
 const ChatMessageComponent: React.FC<ChatMessageProps> = ({ 
-    message, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, isFirstMessage, lang, isActive, onSeekAudio 
+    message, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, isFirstMessage, lang, isActive, onSeekAudio, entities 
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
@@ -66,6 +121,8 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   const activeClasses = isActive && !isAssistant ? 'ring-2 ring-offset-2 ring-offset-[var(--bg-main)] ring-[var(--accent-primary)]' : '';
   const bubbleClasses = `${profile.bubbleColor} ${isEditing ? 'ring-2 ring-red-500' : ''} ${activeClasses}`;
   const controlButtonClasses = "control-button p-1.5 rounded-full text-[var(--text-primary)] bg-[var(--bg-subtle)] hover:bg-[var(--bg-surface)] hover:text-white transition-all";
+
+  const renderedContent = useMemo(() => renderTextWithEntities(message.text, entities, lang), [message.text, entities, lang]);
   
   return (
     <div className="flex justify-start items-start gap-3 group relative">
@@ -103,7 +160,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           </div>
         ) : (
            <div data-message-id={message.id}>
-              {message.text || <span className="text-[var(--text-secondary)] italic">...</span>}
+              {message.text ? renderedContent : <span className="text-[var(--text-secondary)] italic">...</span>}
           </div>
         )}
 

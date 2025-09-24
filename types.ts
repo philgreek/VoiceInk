@@ -29,6 +29,18 @@ export interface ActionItem {
   task: string;
 }
 
+export type EntityType = 'PERSON' | 'ORGANIZATION' | 'DATE' | 'LOCATION' | 'MONEY' | 'OTHER';
+
+export interface Entity {
+  text: string;
+  type: EntityType;
+}
+
+export interface AIChatMessage {
+  role: 'user' | 'model';
+  parts: [{ text: string }];
+}
+
 export interface AnalysisResult {
   summary: string;
   actionItems: ActionItem[];
@@ -37,6 +49,8 @@ export interface AnalysisResult {
     style: TextStyle;
     text: string;
   };
+  entities?: Entity[];
+  aiChatHistory?: AIChatMessage[];
 }
 
 export type TextStyle = 
@@ -53,6 +67,13 @@ export type TextStyle =
   | 'psychological' 
   | 'legal' 
   | 'scientific';
+
+export type AIAgent = 
+  | 'legal'
+  | 'psychologist'
+  | 'coach'
+  | 'editor'
+  | 'financial';
 
 
 export interface Session {

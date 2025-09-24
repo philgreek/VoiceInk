@@ -2,6 +2,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Session, Message, Settings, AnalysisResult } from '../types';
 import { initDB } from '../utils/db';
+import { produce } from 'immer';
 
 const MAX_HISTORY_ITEMS = 10;
 
@@ -58,15 +59,25 @@ export const useSessionHistory = () => {
     return newSession;
   }, [fetchSessions]);
 
-  const updateSessionAnalysis = useCallback(async (sessionId: string, analysisResult: AnalysisResult) => {
+  const updateSessionAnalysis = useCallback(async (sessionId: string, newAnalysisResult: AnalysisResult) => {
     const db = await initDB();
     const session = await db.get('sessions', sessionId);
     if (session) {
-      const updatedSession = { ...session, analysisResult };
+      const updatedSession = produce(session, draft => {
+        draft.analysisResult = newAnalysisResult;
+      });
       await db.put('sessions', updatedSession);
-      await fetchSessions();
+      // Optimistically update local state to avoid re-fetching everything
+      setSessions(prevSessions => 
+        produce(prevSessions, draft => {
+          const index = draft.findIndex(s => s.id === sessionId);
+          if (index !== -1) {
+            draft[index].analysisResult = newAnalysisResult;
+          }
+        })
+      );
     }
-  }, [fetchSessions]);
+  }, []);
 
   const deleteSession = useCallback(async (sessionId: string) => {
     const db = await initDB();

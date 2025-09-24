@@ -1,8 +1,10 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
-import { AnalysisResult, TextStyle } from '../types';
-import { t, Language } from '../utils/translations';
-import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon, EditIcon, EllipsisVerticalIcon, ClipboardIcon, DownloadIcon, NotebookIcon, RefreshCwIcon } from './icons';
+import { AnalysisResult, TextStyle, AIAgent, AIChatMessage } from '../types';
+// FIX: Import 'translations' to resolve TypeScript errors related to type inference.
+import { t, Language, translations } from '../utils/translations';
+import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon, EditIcon, EllipsisVerticalIcon, ClipboardIcon, DownloadIcon, NotebookIcon, RefreshCwIcon, UsersIcon, SendIcon, ScanTextIcon } from './icons';
 
 interface InsightsPanelProps {
   isOpen: boolean;
@@ -11,7 +13,7 @@ interface InsightsPanelProps {
   onExtractActionItems: () => void;
   onExtractTopics: () => void;
   analysisResult: AnalysisResult | null;
-  isProcessing: { summary: boolean; actionItems: boolean; topics: boolean; proofread: boolean };
+  isProcessing: { summary: boolean; actionItems: boolean; topics: boolean; proofread: boolean, agent: boolean, entities: boolean };
   isSessionLoaded: boolean;
   lang: Language;
   onProofreadAndStyle: () => void;
@@ -20,11 +22,24 @@ interface InsightsPanelProps {
   onExportAnalysis: (type: 'summary' | 'actionItems' | 'keyTopics', format: 'copy' | 'txt' | 'notebooklm') => void;
   onExportStyledText: (format: 'copy' | 'txt' | 'notebooklm') => void;
   onClearStyledText: () => void;
+  onAskAIAgent: (prompt: string) => void;
+  aiChatHistory: AIChatMessage[];
+  selectedAIAgents: AIAgent[];
+  onSelectedAIAgentsChange: (agents: AIAgent[]) => void;
+  onExtractEntities: () => void;
 }
 
 const textStyles: TextStyle[] = [
     'default', 'meeting', 'lecture', 'dialogue', 'interview', 'consultation', 
     'podcast', 'blog', 'business', 'literary', 'psychological', 'legal', 'scientific'
+];
+
+const aiAgents: { id: AIAgent, nameKey: keyof typeof translations.en }[] = [
+    { id: 'legal', nameKey: 'agentLegal' },
+    { id: 'psychologist', nameKey: 'agentPsychologist' },
+    { id: 'coach', nameKey: 'agentCoach' },
+    { id: 'editor', nameKey: 'agentEditor' },
+    { id: 'financial', nameKey: 'agentFinancial' },
 ];
 
 const LoadingSpinner: React.FC = () => (
@@ -97,28 +112,68 @@ const Section: React.FC<{
     </div>
 );
 
+const AgentSelector: React.FC<{
+    selectedAgents: AIAgent[];
+    onChange: (agents: AIAgent[]) => void;
+    lang: Language;
+}> = ({ selectedAgents, onChange, lang }) => {
+    const handleToggle = (agentId: AIAgent) => {
+        const newSelection = selectedAgents.includes(agentId)
+            ? selectedAgents.filter(id => id !== agentId)
+            : [...selectedAgents, agentId];
+        onChange(newSelection);
+    };
+
+    return (
+        <div className="px-3 py-2 space-y-2">
+            <label className="text-sm text-[var(--text-secondary)] mb-1 block">{t('selectAIAgent', lang)}</label>
+            <div className="flex flex-wrap gap-2">
+                {aiAgents.map(agent => (
+                    <button
+                        key={agent.id}
+                        onClick={() => handleToggle(agent.id)}
+                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                            selectedAgents.includes(agent.id)
+                                ? 'bg-[var(--accent-primary)] text-white border-transparent'
+                                : 'bg-transparent border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-element)]'
+                        }`}
+                    >
+                        {t(agent.nameKey, lang)}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 
 export const InsightsPanel: React.FC<InsightsPanelProps> = ({
-  isOpen,
-  onClose,
-  onGenerateSummary,
-  onExtractActionItems,
-  onExtractTopics,
-  analysisResult,
-  isProcessing,
-  isSessionLoaded,
-  lang,
-  onProofreadAndStyle,
-  selectedStyle,
-  onStyleChange,
-  onExportAnalysis,
-  onExportStyledText,
-  onClearStyledText,
+  isOpen, onClose, onGenerateSummary, onExtractActionItems, onExtractTopics,
+  analysisResult, isProcessing, isSessionLoaded, lang,
+  onProofreadAndStyle, selectedStyle, onStyleChange,
+  onExportAnalysis, onExportStyledText, onClearStyledText,
+  onAskAIAgent, aiChatHistory, selectedAIAgents, onSelectedAIAgentsChange,
+  onExtractEntities
 }) => {
+  const [agentPrompt, setAgentPrompt] = useState('');
+  const aiChatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    aiChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [aiChatHistory]);
+
+  const handleAgentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (agentPrompt.trim() && selectedAIAgents.length > 0) {
+      onAskAIAgent(agentPrompt.trim());
+      setAgentPrompt('');
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
-    <aside className="w-80 h-screen flex-shrink-0 bg-[var(--bg-surface)] border-l border-[var(--border-color)] flex flex-col z-30 animate-in slide-in-from-right-10 duration-300">
+    <aside className="w-96 h-screen flex-shrink-0 bg-[var(--bg-surface)] border-l border-[var(--border-color)] flex flex-col z-30 animate-in slide-in-from-right-10 duration-300">
       <header className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0">
         <h2 className="text-xl font-bold flex items-center gap-2">
             <LightbulbIcon className="w-6 h-6 text-[var(--accent-primary)]" />
@@ -188,9 +243,21 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                          <p className="px-3 py-2 text-sm italic">{t('noKeyTopicsFound', lang)}</p>
                     ) : (
                         <button onClick={onExtractTopics} disabled={isProcessing.topics} className="flex items-center justify-center gap-2 w-full p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors disabled:opacity-70 disabled:cursor-wait">
-                            {isProcessing.topics ? <><LoadingSpinner /> {t('extractingKeyTopics', lang)}</> : t('extractKeyTopics', lang)}
+                            {isProcessing.topics ? <><LoadingSpinner /> {t('extractingKeyTopics', lang)}</> : t('extractingKeyTopics', lang)}
                         </button>
                     )}
+                </Section>
+
+                <Section title={t('textAnalysis', lang)} icon={<ScanTextIcon className="w-5 h-5" />}>
+                     <div className="px-3 py-2">
+                        {analysisResult?.entities && analysisResult.entities.length > 0 ? (
+                            <p className="text-sm italic">{analysisResult.entities.length} entities found and highlighted in the chat.</p>
+                        ) : (
+                           <button onClick={onExtractEntities} disabled={isProcessing.entities} className="flex items-center justify-center gap-2 w-full p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors disabled:opacity-70 disabled:cursor-wait">
+                                {isProcessing.entities ? <><LoadingSpinner /> {t('findingEntities', lang)}</> : t('findEntities', lang)}
+                            </button>
+                        )}
+                    </div>
                 </Section>
 
                 <div className="border-t border-[var(--border-color)] my-4"></div>
@@ -238,6 +305,39 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                             </button>
                        </div>
                     )}
+                </Section>
+                 <div className="border-t border-[var(--border-color)] my-4"></div>
+                <Section title={t('aiChat', lang)} icon={<UsersIcon className="w-5 h-5" />}>
+                   <AgentSelector selectedAgents={selectedAIAgents} onChange={onSelectedAIAgentsChange} lang={lang} />
+                    <div className="px-3 py-2 space-y-2">
+                        <div className="max-h-60 overflow-y-auto space-y-3 text-sm pr-2">
+                            {aiChatHistory.map((msg, i) => (
+                                <div key={i} className={`p-2 rounded-lg ${msg.role === 'user' ? 'bg-[var(--bg-element)]' : 'bg-transparent'}`}>
+                                    <p className="whitespace-pre-wrap">{msg.parts[0].text}</p>
+                                </div>
+                            ))}
+                            {isProcessing.agent && (
+                                 <div className="flex items-center gap-2 text-sm p-2 text-[var(--text-placeholder)]">
+                                     <LoadingSpinner />
+                                     <span>{t('agentThinking', lang)}</span>
+                                 </div>
+                            )}
+                            <div ref={aiChatEndRef} />
+                        </div>
+                        <form onSubmit={handleAgentSubmit} className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={agentPrompt}
+                                onChange={e => setAgentPrompt(e.target.value)}
+                                placeholder={t('askAIAgent', lang)}
+                                disabled={isProcessing.agent || selectedAIAgents.length === 0}
+                                className="w-full bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none disabled:opacity-50"
+                            />
+                            <button type="submit" disabled={isProcessing.agent || !agentPrompt.trim() || selectedAIAgents.length === 0} className="p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                <SendIcon className="w-5 h-5"/>
+                            </button>
+                        </form>
+                    </div>
                 </Section>
             </>
         )}
