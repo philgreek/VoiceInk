@@ -30,12 +30,13 @@ export default async function handler(req: any, res: any) {
 
     const textPart = {
       text: `
-        Transcribe the audio recording.
-        The output must be a valid JSON array of objects. Each object represents a segment of the conversation and must have three properties:
-        1. "id": A unique string identifier for the message, like "msg-1719324823".
-        2. "sender": A string, either "user" or "interlocutor". Identify and differentiate between speakers.
-        3. "text": A string containing the transcribed text for that segment.
-        Do not add any text or explanations outside of the JSON array.
+        Accurately transcribe the audio recording.
+        The audio contains a conversation between one or more speakers.
+        Your task is to segment the conversation by speaker and provide a transcription for each segment.
+        The output must be a valid JSON array of objects. Each object represents a single continuous utterance from one speaker and must have two properties:
+        1. "speaker": A generic string label for the speaker, like "SPEAKER_1", "SPEAKER_2", etc. Use these labels consistently for the same speaker.
+        2. "text": A string containing the transcribed text for that segment.
+        Do not add any text, explanations, or markdown formatting outside of the JSON array. The entire response should be the JSON array itself.
       `,
     };
 
@@ -49,29 +50,43 @@ export default async function handler(req: any, res: any) {
           items: {
             type: Type.OBJECT,
             properties: {
-              id: { type: Type.STRING },
-              sender: { type: Type.STRING },
+              speaker: { type: Type.STRING },
               text: { type: Type.STRING },
             },
-            required: ['id', 'sender', 'text'],
+            required: ['speaker', 'text'],
           },
         },
       },
     });
 
     const jsonText = response.text.trim();
-    const transcribedMessages: Message[] = JSON.parse(jsonText);
+    const rawMessages: { speaker: string; text: string }[] = JSON.parse(jsonText);
     
-    // Add dummy timestamps for now as we don't get them from the API
-    const messagesWithTimestamps = transcribedMessages.map((msg, index) => ({
-        ...msg,
-        timestamp: index * 5 // Approximate timestamp
-    }));
+    // Post-process to fit the frontend's Message type
+    const speakerMap = new Map<string, 'user' | 'interlocutor'>();
+    let nextSpeakerRole: 'interlocutor' | 'user' = 'interlocutor';
+
+    const messagesWithTimestamps: Message[] = rawMessages.map((rawMsg, index) => {
+      if (!speakerMap.has(rawMsg.speaker)) {
+        speakerMap.set(rawMsg.speaker, nextSpeakerRole);
+        nextSpeakerRole = nextSpeakerRole === 'interlocutor' ? 'user' : 'interlocutor';
+      }
+      
+      const sender = speakerMap.get(rawMsg.speaker)!;
+
+      return {
+        id: `msg-${Date.now()}-${index}`,
+        sender,
+        text: rawMsg.text,
+        timestamp: index * 5, // Approximate timestamp
+      };
+    });
 
     return res.status(200).json(messagesWithTimestamps);
 
   } catch (error) {
     console.error('Error in /api/transcribe:', error);
-    return res.status(500).json({ error: 'Failed to transcribe audio' });
+    const errorMessage = error instanceof Error ? error.message : 'Failed to transcribe audio';
+    return res.status(500).json({ error: errorMessage });
   }
 }
