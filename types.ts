@@ -73,7 +73,9 @@ export type AIAgent =
   | 'psychologist'
   | 'coach'
   | 'editor'
-  | 'financial';
+  | 'financial'
+  | 'tutor'
+  | 'speechwriter';
 
 
 export interface Session {

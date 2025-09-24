@@ -40,6 +40,8 @@ const aiAgents: { id: AIAgent, nameKey: keyof typeof translations.en }[] = [
     { id: 'coach', nameKey: 'agentCoach' },
     { id: 'editor', nameKey: 'agentEditor' },
     { id: 'financial', nameKey: 'agentFinancial' },
+    { id: 'tutor', nameKey: 'agentTutor' },
+    { id: 'speechwriter', nameKey: 'agentSpeechwriter' },
 ];
 
 const LoadingSpinner: React.FC = () => (
