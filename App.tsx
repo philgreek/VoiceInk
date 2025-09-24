@@ -822,6 +822,55 @@ const App: React.FC = () => {
     }
   };
 
+  type AnalysisType = 'summary' | 'actionItems' | 'keyTopics';
+  type ExportFormat = 'copy' | 'txt' | 'notebooklm';
+
+  const handleExportAnalysis = (type: AnalysisType, format: ExportFormat) => {
+      if (!analysisResult) return;
+
+      let content = '';
+      let title = '';
+
+      switch (type) {
+          case 'summary':
+              content = analysisResult.summary;
+              title = t('summary', lang);
+              break;
+          case 'actionItems':
+              content = analysisResult.actionItems.map(item => `- ${item.task}`).join('\n');
+              title = t('actionItems', lang);
+              break;
+          case 'keyTopics':
+              content = analysisResult.keyTopics.map(topic => `- ${topic}`).join('\n');
+              title = t('keyTopics', lang);
+              break;
+      }
+
+      if (!content) return;
+
+      if (format === 'notebooklm') {
+          content = `# ${t('sessionNameDefault', lang)}: ${sessionName}\n\n## ${title}\n\n${content}`;
+      }
+
+      if (format === 'copy') {
+          navigator.clipboard.writeText(content).then(() => {
+            alert(t('copySuccess', lang));
+          }).catch(err => {
+            console.error('Failed to copy analysis: ', err);
+            alert(t('copyFail', lang));
+          });
+      } else { // 'txt' or 'notebooklm'
+          const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const sanitizedType = title.replace(/\s+/g, '_');
+          a.download = `${sanitizeFileName(sessionName)}_${sanitizedType}.txt`;
+          a.click();
+          URL.revokeObjectURL(url);
+      }
+  };
+
   useEffect(() => {
     const body = document.body;
     body.className = '';
@@ -901,6 +950,7 @@ const App: React.FC = () => {
             onGenerateSummary={handleGenerateSummary}
             onExtractActionItems={handleExtractActionItems}
             onExtractTopics={handleExtractTopics}
+            onExportAnalysis={handleExportAnalysis}
             analysisResult={analysisResult}
             isProcessing={isAIProcessing}
             isSessionLoaded={!!loadedSession}

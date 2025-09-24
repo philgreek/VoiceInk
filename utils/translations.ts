@@ -138,6 +138,7 @@ export const translations = {
     tourTranscriptionControlsBody: 'Use these buttons to start/stop the session and to switch between your voice and the other speaker\'s.',
     tourEditingTitle: 'Editing is Easy!',
     tourEditingBody: 'Hover over any message to reveal editing options. You can change the speaker by clicking the avatar, edit text, delete messages, and even split a message by selecting text.',
+    exportAnalysis: 'Export analysis',
     // FIX: Add missing translation keys.
     instructions: 'Instructions',
     fileInstructionP1: 'You have selected the file: {fileName}. To get the best transcription results, please follow these steps:',
@@ -286,6 +287,7 @@ export const translations = {
     tourTranscriptionControlsBody: 'Используйте эти кнопки, чтобы начать/остановить сессию и переключаться между вашим голосом и голосом собеседника.',
     tourEditingTitle: 'Редактировать — это просто!',
     tourEditingBody: 'Наведите курсор на любое сообщение, чтобы увидеть опции редактирования. Вы можете сменить говорящего, нажав на аватар, редактировать текст, удалять сообщения и даже разделять сообщение, выделив его часть.',
+    exportAnalysis: 'Экспорт аналитики',
     // FIX: Add missing translation keys.
     instructions: 'Инструкции',
     fileInstructionP1: 'Вы выбрали файл: {fileName}. Для наилучших результатов транскрипции, пожалуйста, следуйте этим шагам:',
@@ -434,6 +436,7 @@ export const translations = {
     tourTranscriptionControlsBody: 'Usa estos botones para iniciar/detener la sesión y para cambiar entre tu voz y la del otro interlocutor.',
     tourEditingTitle: '¡Editar es Fácil!',
     tourEditingBody: 'Pasa el cursor sobre cualquier mensaje para revelar las opciones de edición. Puedes cambiar el interlocutor haciendo clic en el avatar, editar texto, eliminar mensajes e incluso dividir un mensaje seleccionando texto.',
+    exportAnalysis: 'Exportar análisis',
     // FIX: Add missing translation keys.
     instructions: 'Instrucciones',
     fileInstructionP1: 'Ha seleccionado el archivo: {fileName}. Para obtener los mejores resultados de transcripción, siga estos pasos:',
@@ -582,6 +585,7 @@ export const translations = {
     tourTranscriptionControlsBody: 'Utilisez ces boutons pour démarrer/arrêter la session et pour basculer entre votre voix et celle de l\'autre interlocuteur.',
     tourEditingTitle: 'L\'édition est facile !',
     tourEditingBody: 'Survolez n\'importe quel message pour afficher les options d\'édition. Vous pouvez changer l\'interlocuteur en cliquant sur l\'avatar, modifier le texte, supprimer des messages et même diviser un message en sélectionnant du texte.',
+    exportAnalysis: 'Exporter l\'analyse',
     // FIX: Add missing translation keys.
     instructions: 'Instructions',
     fileInstructionP1: 'Vous avez sélectionné le fichier : {fileName}. Pour obtenir les meilleurs résultats de transcription, veuillez suivre ces étapes :',
@@ -730,6 +734,7 @@ export const translations = {
     tourTranscriptionControlsBody: 'Verwenden Sie diese Tasten, um die Sitzung zu starten/stoppen und zwischen Ihrer Stimme und der des anderen Sprechers zu wechseln.',
     tourEditingTitle: 'Bearbeiten ist einfach!',
     tourEditingBody: 'Fahren Sie mit der Maus über eine beliebige Nachricht, um Bearbeitungsoptionen anzuzeigen. Sie können den Sprecher durch Klicken auf den Avatar ändern, Text bearbeiten, Nachrichten löschen und sogar eine Nachricht durch Auswählen von Text teilen.',
+    exportAnalysis: 'Analyse exportieren',
     // FIX: Add missing translation keys.
     instructions: 'Anweisungen',
     fileInstructionP1: 'Sie haben die Datei ausgewählt: {fileName}. Um die besten Transkriptionsergebnisse zu erzielen, befolgen Sie bitte diese Schritte:',
@@ -878,6 +883,7 @@ export const translations = {
     tourTranscriptionControlsBody: 'これらのボタンを使って、セッションを開始/停止したり、あなたの声と相手の声を切り替えたりします。',
     tourEditingTitle: '編集は簡単です！',
     tourEditingBody: 'メッセージにカーソルを合わせると編集オプションが表示されます。アバターをクリックして話者を変更したり、テキストを編集したり、メッセージを削除したり、テキストを選択してメッセージを分割したりできます。',
+    exportAnalysis: '分析をエクスポート',
     // FIX: Add missing translation keys.
     instructions: '手順',
     fileInstructionP1: 'ファイル {fileName} を選択しました。最適な文字起こし結果を得るために、次の手順に従ってください。',
@@ -1023,9 +1029,11 @@ export const translations = {
     tourChatWindowTitle: '聊天区域',
     tourChatWindowBody: '您转录的对话将实时显示在这里。',
     tourTranscriptionControlsTitle: '转录控件',
+    // FIX: Renamed duplicate key 'tourControlsBody' to 'tourTranscriptionControlsBody'.
     tourTranscriptionControlsBody: '使用这些按钮可以开始/停止会话，并在您的语音和对方的语音之间切换。',
     tourEditingTitle: '编辑很简单！',
     tourEditingBody: '将鼠标悬停在任何消息上以显示编辑选项。您可以通过单击头像来更改发言人、编辑文本、删除消息，甚至通过选择文本来拆分消息。',
+    exportAnalysis: '导出分析',
     // FIX: Add missing translation keys.
     instructions: '说明',
     fileInstructionP1: '您已选择文件：{fileName}。为获得最佳转录效果，请按照以下步骤操作：',
@@ -1033,7 +1041,7 @@ export const translations = {
     fileInstructionL1: '<strong>不要关闭</strong>新的窗口/标签页。',
     fileInstructionL2: '返回此VoiceInk标签页。转录将<strong>自动开始</strong>。',
     fileInstructionL3: '完成后，在此VoiceInk标签页中<strong>停止录制</strong>，然后可以关闭其他窗口/标签页。',
-    fileInstructionNote: '注意：此方法使用您计算机的音频输出作为麦克风，因此会捕获您计算机发出的任何声音。',
+    fileInstructionNote: '注意：此方法使用您计算机的音频输出作为麦克風，因此会捕获您计算机发出的任何声音。',
     continue: '继续',
   },
 };
