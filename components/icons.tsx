@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 type SVGProps = React.SVGProps<SVGSVGElement>;
@@ -209,5 +210,16 @@ export const FileAudioIcon: React.FC<SVGProps> = (props) => (
         <path d="M10 15.5v-3.3a1.2 1.2 0 0 1 2.4 0v3.3"/>
         <path d="M12 18.5a2.5 2.5 0 0 1-5 0V16a2.5 2.5 0 0 1 5 0v2.5"/>
         <path d="M8 15.5a2.5 2.5 0 0 1 5 0V16a2.5 2.5 0 0 1-5 0Z"/>
+    </svg>
+);
+
+export const NotebookIcon: React.FC<SVGProps> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M2 6h4"/>
+        <path d="M2 10h4"/>
+        <path d="M2 14h4"/>
+        <path d="M2 18h4"/>
+        <rect width="16" height="20" x="4" y="2" rx="2"/>
+        <path d="M16 2v20"/>
     </svg>
 );

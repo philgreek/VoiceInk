@@ -25,6 +25,7 @@ import html2canvas from 'html2canvas';
 import { AudioPlayer } from './components/AudioPlayer';
 import introJs from 'intro.js';
 import { getSummary, getActionItems, getKeyTopics, getProofreadAndStyledText } from './utils/gemini';
+import { NotebookLMInstructionsModal } from './components/NotebookLMInstructionsModal';
 
 const defaultSettings: Settings = {
   user: {
@@ -81,6 +82,7 @@ const App: React.FC = () => {
   const [selectedTextStyle, setSelectedTextStyle] = useState<TextStyle>('default');
   const [showProofreadModal, setShowProofreadModal] = useState(false);
   const [proofreadResult, setProofreadResult] = useState('');
+  const [showNotebookLMInstructionsModal, setShowNotebookLMInstructionsModal] = useState(false);
 
   const { sessions, saveSession, deleteSession, getSessionAudio, updateSessionAnalysis } = useSessionHistory();
 
@@ -664,6 +666,31 @@ const App: React.FC = () => {
     }
   };
 
+  const formatChatForNotebookLM = () => {
+    const title = `${t('sessionNameDefault', lang)}: ${sessionName}\n\n---\n\n`;
+    const chat = messages
+      .filter(msg => msg.sender !== 'assistant' && msg.text.trim() !== '')
+      .map(msg => {
+        const speakerName = msg.sender === 'user' ? t('you', lang) : t('speaker', lang);
+        return `${speakerName}:\n${msg.text}\n`;
+      })
+      .join('\n');
+    return title + chat;
+  };
+
+  const handleExportForNotebookLM = () => {
+    const text = formatChatForNotebookLM();
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${sanitizeFileName(sessionName)}_for_NotebookLM.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowExportModal(false);
+    setShowNotebookLMInstructionsModal(true);
+  };
+
   const handleLoadSession = async (session: Session) => {
     const audioBlob = await getSessionAudio(session.id);
     const loaded: LoadedSession = { ...session, audioBlob };
@@ -892,6 +919,7 @@ const App: React.FC = () => {
         onSaveAsDocx={handleSaveAsDocx}
         onCopyToClipboard={handleCopyToClipboard}
         onSendToApp={handleSendToApp}
+        onExportForNotebookLM={handleExportForNotebookLM}
         isExporting={isExporting}
         lang={lang}
       />}
@@ -935,6 +963,12 @@ const App: React.FC = () => {
         onClose={() => setShowProofreadModal(false)}
         lang={lang}
       />}
+      {showNotebookLMInstructionsModal && <NotebookLMInstructionsModal 
+        fileName={`${sanitizeFileName(sessionName)}_for_NotebookLM.txt`}
+        onClose={() => setShowNotebookLMInstructionsModal(false)}
+        lang={lang}
+      />}
+
 
       {/* Hidden elements for functionality */}
       <audio ref={streamAudioRef} playsInline muted />

@@ -1,8 +1,6 @@
 
-
-
 import React from 'react';
-import { DownloadIcon, ClipboardIcon, ShareIcon, XIcon } from './icons';
+import { DownloadIcon, ClipboardIcon, ShareIcon, XIcon, NotebookIcon } from './icons';
 import { t, Language } from '../utils/translations';
 
 interface ExportModalProps {
@@ -13,6 +11,7 @@ interface ExportModalProps {
   onSaveAsDocx: () => void;
   onCopyToClipboard: () => void;
   onSendToApp: () => void;
+  onExportForNotebookLM: () => void;
   isExporting: boolean;
   lang: Language;
 }
@@ -25,6 +24,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   onSaveAsDocx,
   onCopyToClipboard,
   onSendToApp,
+  onExportForNotebookLM,
   isExporting,
   lang,
 }) => {
@@ -46,7 +46,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </button>
         </div>
         <div className="space-y-4">
-          <div className="border-b border-[var(--border-color)] pb-4">
+          <div className="space-y-2">
+               <button
+                  onClick={onExportForNotebookLM}
+                  disabled={isExporting}
+                  className="w-full flex items-center gap-4 text-left p-3 bg-gradient-to-r from-blue-500/20 to-purple-500/20 hover:from-blue-500/30 hover:to-purple-500/30 rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 ring-2 ring-purple-400"
+                >
+                  <NotebookIcon className="w-5 h-5 text-purple-300 flex-shrink-0 ml-1" />
+                  <div>
+                    <span className="font-semibold text-[var(--text-primary)] text-base">{t('exportForNotebookLM', lang)}</span>
+                    <p className="text-sm text-[var(--text-secondary)]">{t('exportForNotebookLMDescription', lang)}</p>
+                  </div>
+               </button>
+           </div>
+          <div className="border-b border-[var(--border-color)] pb-4 pt-4">
              <div className="space-y-2">
                  <button
                     onClick={onSaveAsTxt}
