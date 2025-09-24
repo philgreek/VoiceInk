@@ -1,7 +1,7 @@
 
 
 import React from 'react';
-import { XIcon, DownloadIcon, TrashIcon, PlayIcon } from './icons';
+import { XIcon, DownloadIcon, TrashIcon, PlayIcon, FolderDownIcon } from './icons';
 import { t, Language } from '../utils/translations';
 import { Session } from '../types';
 
@@ -10,6 +10,7 @@ interface HistoryModalProps {
   onClose: () => void;
   onLoad: (session: Session) => void;
   onDelete: (sessionId: string) => void;
+  onSaveAudio: (sessionId: string) => void;
   lang: Language;
 }
 
@@ -18,6 +19,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
   onClose,
   onLoad,
   onDelete,
+  onSaveAudio,
   lang,
 }) => {
 
@@ -61,6 +63,15 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                    </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {session.hasAudio && (
+                    <button
+                      onClick={() => onSaveAudio(session.id)}
+                      className="p-2 bg-[var(--bg-element-hover)] hover:bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-md transition-colors"
+                      title={t('saveAudioToFile', lang)}
+                    >
+                      <FolderDownIcon className="w-5 h-5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => onLoad(session)}
                     className="p-2 bg-[var(--bg-element-hover)] hover:bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-md transition-colors"

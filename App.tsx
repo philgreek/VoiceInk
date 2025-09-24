@@ -675,6 +675,23 @@ const App: React.FC = () => {
     stopTranscriptionSession();
   };
 
+  const handleSaveSessionAudio = async (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    const audioBlob = await getSessionAudio(sessionId);
+    if (audioBlob) {
+        const url = URL.createObjectURL(audioBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${sanitizeFileName(session.name)}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+  };
+
   const handleSeekAudio = (time: number) => {
     if (audioPlayerRef.current) {
       audioPlayerRef.current.currentTime = time;
@@ -905,6 +922,7 @@ const App: React.FC = () => {
         onClose={() => setShowHistoryModal(false)}
         onLoad={handleLoadSession}
         onDelete={deleteSession}
+        onSaveAudio={handleSaveSessionAudio}
         lang={lang}
       />}
       {showApiKeyModal && <ApiKeyModal 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { MicIcon, SparklesIcon } from './icons';
+import { MicIcon, SparklesIcon, PlayIcon, PauseIcon, StopIcon } from './icons';
 import { t, Language } from '../utils/translations';
 
 interface TranscriptionControlsProps {
@@ -70,26 +70,29 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
              <button
                 onClick={onStartClick}
                 className={`${baseButtonClasses} flex-1 bg-green-600 hover:bg-green-700`}
+                aria-label={t('start', lang)}
               >
-                {t('start', lang)}
+                <PlayIcon className="w-8 h-8" />
               </button>
           ) : (
-            <div className="flex-1 flex items-stretch gap-4">
+            <div className="flex-1 flex items-stretch gap-4 min-w-0">
                <button
                 onClick={onPauseClick}
-                className={`${baseButtonClasses} flex-1 ${
+                className={`${baseButtonClasses} flex-1 min-w-0 ${
                     isPaused 
                     ? 'bg-green-600 hover:bg-green-700' 
                     : 'bg-amber-500 hover:bg-amber-600'
                 } disabled:bg-gray-500 disabled:cursor-not-allowed`}
+                aria-label={isPaused ? t('resume', lang) : t('pause', lang)}
               >
-                {isPaused ? t('resume', lang) : t('pause', lang)}
+                {isPaused ? <PlayIcon className="w-8 h-8" /> : <PauseIcon className="w-8 h-8" />}
               </button>
                <button
                 onClick={onStopClick}
-                className={`${baseButtonClasses} flex-1 bg-red-600 hover:bg-red-700`}
+                className={`${baseButtonClasses} flex-1 min-w-0 bg-red-600 hover:bg-red-700`}
+                aria-label={t('stop', lang)}
               >
-                {t('stop', lang)}
+                <StopIcon className="w-8 h-8" />
               </button>
             </div>
           )}
