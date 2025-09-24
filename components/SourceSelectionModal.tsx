@@ -6,15 +6,13 @@ import { t, Language } from '../utils/translations';
 
 interface SourceSelectionModalProps {
   onClose: () => void;
-  onSelectSource: (source: 'microphone' | 'display') => void;
-  onFileSelectClick: () => void;
+  onSelectSource: (source: 'microphone' | 'display' | 'file') => void;
   lang: Language;
 }
 
 export const SourceSelectionModal: React.FC<SourceSelectionModalProps> = ({
   onClose,
   onSelectSource,
-  onFileSelectClick,
   lang
 }) => {
   return (
@@ -55,8 +53,8 @@ export const SourceSelectionModal: React.FC<SourceSelectionModalProps> = ({
               <p className="text-sm text-[var(--text-secondary)]">{t('computerAudioDescription', lang)}</p>
             </div>
           </button>
-          <button
-            onClick={onFileSelectClick}
+           <button
+            onClick={() => onSelectSource('file')}
             className="w-full flex items-center gap-4 text-left p-4 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-all duration-200 transform hover:scale-[1.02]"
           >
             <FileUploadIcon className="w-6 h-6 text-[var(--accent-primary)] flex-shrink-0" />
@@ -65,9 +63,6 @@ export const SourceSelectionModal: React.FC<SourceSelectionModalProps> = ({
               <p className="text-sm text-[var(--text-secondary)]">{t('uploadAudioFileDescription', lang)}</p>
             </div>
           </button>
-        </div>
-         <div className="mt-6 text-xs text-[var(--text-placeholder)] text-center">
-            <p>{t('sourceSelectionNote', lang)}</p>
         </div>
       </div>
     </div>

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { DownloadIcon, TrashIcon, SettingsIcon, UndoIcon, RedoIcon, QuestionMarkCircleIcon } from './icons';
 import { t, Language } from '../utils/translations';
@@ -18,7 +19,6 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, onHistoryClick, onUndo, onRedo, canUndo, canRedo, onHelpClick, lang }) => {
   const buttonClasses = "p-2 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-transparent hover:bg-[var(--bg-surface)] rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent";
 
-  // The header layout is changed to a more robust flexbox model with a spacer.
   return (
     <header className="flex-shrink-0 flex items-center py-4 px-4 sm:py-6 sm:px-6 border-b border-[var(--border-color)] sticky top-0 bg-[var(--bg-header)] backdrop-blur-sm z-10">
       <button onClick={onHistoryClick} data-tour-id="history-btn" className="text-2xl font-bold text-[var(--text-primary)] truncate text-left transition-opacity hover:opacity-80 flex-shrink-0">
@@ -27,7 +27,6 @@ export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, o
         </h1>
       </button>
       
-      {/* Spacer to push controls to the right */}
       <div className="flex-grow" />
 
       <div className="flex items-center gap-1 sm:gap-2" data-tour-id="header-controls">

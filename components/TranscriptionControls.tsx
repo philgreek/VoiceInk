@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { MicIcon, SparklesIcon } from './icons';
 import { t, Language } from '../utils/translations';
@@ -7,7 +6,6 @@ interface TranscriptionControlsProps {
   isRecording: boolean;
   isPaused: boolean;
   isPushToTalkActive: boolean;
-  isTranscribingFile: boolean;
   isAIAssistantOpen: boolean;
   onStartClick: () => void;
   onStopClick: () => void;
@@ -21,7 +19,6 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
   isRecording,
   isPaused,
   isPushToTalkActive,
-  isTranscribingFile,
   isAIAssistantOpen,
   onStartClick,
   onStopClick,
@@ -34,7 +31,7 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
     ? 'bg-[var(--bg-element-hover)]'
     : 'bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)]';
     
-  const isPttDisabled = !isRecording || isPaused || isTranscribingFile;
+  const isPttDisabled = !isRecording || isPaused;
 
   const baseButtonClasses = 'font-bold py-4 px-4 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg text-white text-xl flex items-center justify-center select-none';
   
@@ -80,7 +77,6 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
             <div className="flex-1 flex items-stretch gap-4">
                <button
                 onClick={onPauseClick}
-                disabled={isTranscribingFile}
                 className={`${baseButtonClasses} flex-1 ${
                     isPaused 
                     ? 'bg-green-600 hover:bg-green-700' 

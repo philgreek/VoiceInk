@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, forwardRef } from 'react';
 import type { Message, Settings } from '../types';
-import { MicIcon, FileUploadIcon } from './icons';
+import { MicIcon, FileAudioIcon } from './icons';
 import { ChatMessage } from './ChatMessage';
 import { t, Language } from '../utils/translations';
 
@@ -10,7 +10,7 @@ interface ChatWindowProps {
   currentSpeaker: 'user' | 'interlocutor';
   isRecording: boolean;
   isPaused: boolean;
-  isTranscribingFile: boolean;
+  isProcessingFile: boolean;
   settings: Settings;
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
@@ -83,7 +83,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
     currentSpeaker, 
     isRecording,
     isPaused,
-    isTranscribingFile,
+    isProcessingFile,
     settings,
     onUpdateMessage,
     onChangeSpeaker,
@@ -101,26 +101,26 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
   }, [messages, interimTranscript, isRecording, isPaused]);
 
   const renderContent = () => {
+    if (isProcessingFile) {
+       return (
+            <Placeholder>
+                <div className="flex items-center gap-4">
+                    <FileAudioIcon className="w-12 h-12 animate-pulse text-[var(--accent-primary)]" />
+                     <div>
+                        <h3 className="text-xl font-semibold text-[var(--text-primary)]">{t('transcribingFile', lang)}</h3>
+                        <p>{t('thisMayTakeAMoment', lang)}</p>
+                    </div>
+                </div>
+            </Placeholder>
+        )
+    }
+      
     if (!isRecording && messages.length === 0) {
         return (
              <Placeholder>
                 <MicIcon className="w-16 h-16 mb-4" />
                 <h3 className="text-xl font-semibold text-[var(--text-primary)]">{t('readyToTranscribe', lang)}</h3>
                 <p>{t('pressStartToBegin', lang)}</p>
-            </Placeholder>
-        )
-    }
-    
-    if (isTranscribingFile && messages.length <= 1 && messages[0]?.text.trim() === '') {
-       return (
-            <Placeholder>
-                <div className="flex items-center gap-4">
-                    <FileUploadIcon className="w-12 h-12 animate-pulse" />
-                     <div>
-                        <h3 className="text-xl font-semibold text-[var(--text-primary)]">{t('transcribingFile', lang)}</h3>
-                        <p>{t('thisMayTakeAMoment', lang)}</p>
-                    </div>
-                </div>
             </Placeholder>
         )
     }

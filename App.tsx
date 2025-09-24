@@ -9,7 +9,6 @@ import { TranscriptionControls } from './components/TranscriptionControls';
 import { ExportModal } from './components/ExportModal';
 import { SettingsModal } from './components/SettingsModal';
 import { SourceSelectionModal } from './components/SourceSelectionModal';
-import { FileInstructionsModal } from './components/FileInstructionsModal';
 import { SessionNameModal } from './components/SessionNameModal';
 import { HistoryModal } from './components/HistoryModal';
 import { ContextualActionBar } from './components/ContextualActionBar';
@@ -60,19 +59,17 @@ const App: React.FC = () => {
   
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [isTranscribingFile, setIsTranscribingFile] = useState(false);
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [currentSpeaker, setCurrentSpeaker] = useState<'user' | 'interlocutor'>('interlocutor');
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSourceModal, setShowSourceModal] = useState(false);
-  const [showFileInstructionsModal, setShowFileInstructionsModal] = useState(false);
   const [showSessionNameModal, setShowSessionNameModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [sessionName, setSessionName] = useState('');
   const [loadedSession, setLoadedSession] = useState<LoadedSession | null>(null);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
-  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
@@ -88,7 +85,6 @@ const App: React.FC = () => {
   const { sessions, saveSession, deleteSession, getSessionAudio, updateSessionAnalysis } = useSessionHistory();
 
   const streamAudioRef = useRef<HTMLAudioElement>(null);
-  const fileAudioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatWindowRef = useRef<HTMLDivElement>(null);
   const audioPlayerRef = useRef<HTMLAudioElement>(null);
@@ -272,19 +268,12 @@ const App: React.FC = () => {
   const stopTranscriptionSession = useCallback(() => {
     setIsRecording(false);
     setIsPaused(false);
-    setIsTranscribingFile(false);
     setIsPushToTalkActive(false);
-    setAudioFile(null);
-    if (fileAudioRef.current) {
-      fileAudioRef.current.pause();
-      fileAudioRef.current.src = "";
-    }
     stopMediaStream();
   }, [stopMediaStream]);
 
  const handleStopClick = () => {
     stopTranscriptionSession();
-    // Keep loaded session active for analysis
   };
 
   const startRecordingFlow = (name: string) => {
@@ -301,8 +290,18 @@ const App: React.FC = () => {
     startRecordingFlow(name);
   };
   
-  const handleSourceSelected = async (source: 'microphone' | 'display') => {
+  const handleSourceSelected = async (source: 'microphone' | 'display' | 'file') => {
       setShowSourceModal(false);
+      
+      if (source === 'file') {
+        if (isRecording) {
+            alert(t('sessionInProgress', lang));
+            return;
+        }
+        fileInputRef.current?.click();
+        return;
+      }
+
       const constraints = source === 'microphone' 
         ? { audio: true } 
         : { video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } };
@@ -335,61 +334,69 @@ const App: React.FC = () => {
       }
   };
 
-  const handleFileSelectClick = () => {
-    setShowSourceModal(false);
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelectedForTranscription = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setAudioFile(file);
-      setShowFileInstructionsModal(true);
-    }
-     if(event.target) {
-        event.target.value = '';
-    }
-  };
+    if (!file) return;
 
-  const handleStartFileTranscriptionFlow = async () => {
-    setShowFileInstructionsModal(false);
-    if (!audioFile) return;
+    const MAX_SIZE_MB = 4.5;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      alert(t('fileTooLargeError', lang, { maxSize: MAX_SIZE_MB }));
+      return;
+    }
 
-    try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64String = (e.target.result as string).split(',')[1];
+      
+      resetMessages([]);
+      setLoadedSession(null);
+      setAnalysisResult(null);
+      setIsProcessingFile(true);
+      setSessionName(file.name);
+
+      try {
+        const response = await fetch('/api/transcribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audioData: base64String, mimeType: file.type })
         });
 
-        const audioTrack = stream.getAudioTracks()[0];
-        if (!audioTrack) {
-            alert(t('audioTrackNotSharedError', lang));
-            stream.getTracks().forEach(track => track.stop());
-            setAudioFile(null);
-            return;
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.statusText}`);
         }
+        
+        const resultMessages: Message[] = await response.json();
+        
+        // Save as a new session
+        const newSession = await saveSession({
+          name: file.name,
+          messages: resultMessages,
+          settings,
+          hasAudio: false, // We don't save the original audio for now
+          analysisResult: null,
+        }, null);
 
-        audioTrack.onended = () => stopTranscriptionSession();
-        setMediaStream(stream);
-        setIsTranscribingFile(true);
+        setLoadedSession({ ...newSession, audioBlob: null });
+        setMessages(resultMessages);
 
-        if (fileAudioRef.current) {
-            fileAudioRef.current.src = URL.createObjectURL(audioFile);
-            fileAudioRef.current.play();
-        }
-        setShowSessionNameModal(true);
-    } catch (err) {
-        console.error("Error starting display media for file transcription:", err);
-        setAudioFile(null);
-        if ((err as DOMException).name !== 'NotAllowedError') {
-            alert(t('screenShareError', lang));
-        }
+      } catch (error) {
+        console.error("Error during file transcription:", error);
+        alert(t('aiError', lang));
+        resetMessages([]);
+        setSessionName('');
+      } finally {
+        setIsProcessingFile(false);
+      }
+    };
+    reader.onerror = (error) => {
+        console.error("Error reading file:", error);
+        alert(t('fileReadError', lang));
+    };
+    reader.readAsDataURL(file);
+
+    if(event.target) {
+      event.target.value = '';
     }
-  };
-
-  const handleCancelFileTranscriptionFlow = () => {
-    setShowFileInstructionsModal(false);
-    setAudioFile(null);
   };
 
   const handleStartClick = () => {
@@ -400,7 +407,7 @@ const App: React.FC = () => {
         setAnalysisResult(null);
         setShowSourceModal(true);
       }
-    } else { // Start a brand new session
+    } else {
       resetMessages([]);
       setLoadedSession(null);
       setAnalysisResult(null);
@@ -409,19 +416,19 @@ const App: React.FC = () => {
   };
 
   const handlePauseClick = () => {
-    if (isRecording && !isTranscribingFile) {
+    if (isRecording) {
       setIsPaused(prev => !prev);
     }
   };
 
   const handleMicToggle = useCallback(() => {
-    if (!isRecording || isPaused || isTranscribingFile) return;
+    if (!isRecording || isPaused) return;
 
     const newPttState = !isPushToTalkActive;
     setIsPushToTalkActive(newPttState);
     setCurrentSpeaker(newPttState ? 'user' : 'interlocutor');
     restartListening();
-  }, [isRecording, isPaused, isTranscribingFile, isPushToTalkActive, restartListening]);
+  }, [isRecording, isPaused, isPushToTalkActive, restartListening]);
 
   const handleClear = () => {
       if (window.confirm(t('clearChatConfirmation', lang))) {
@@ -534,7 +541,7 @@ const App: React.FC = () => {
   };
 
   const sanitizeFileName = (name: string) => {
-    return name.replace(/[^a-z0-9_-s]/gi, '_').replace(/\s+/g, '_').trim() || `chat-${new Date().toISOString()}`;
+    return name.replace(/[^a-z0-9_-s.]/gi, '_').replace(/\s+/g, '_').trim() || `chat-${new Date().toISOString()}`;
   };
 
   const handleSaveAsTxt = () => {
@@ -803,7 +810,7 @@ const App: React.FC = () => {
             currentSpeaker={isPushToTalkActive ? 'user' : 'interlocutor'} 
             isRecording={isRecording}
             isPaused={isPaused}
-            isTranscribingFile={isTranscribingFile}
+            isProcessingFile={isProcessingFile}
             settings={settings}
             onUpdateMessage={handleUpdateMessage}
             onChangeSpeaker={handleChangeSpeaker}
@@ -835,7 +842,6 @@ const App: React.FC = () => {
             isRecording={isRecording}
             isPaused={isPaused}
             isPushToTalkActive={isPushToTalkActive}
-            isTranscribingFile={isTranscribingFile}
             onStartClick={handleStartClick}
             onStopClick={handleStopClick}
             onPauseClick={handlePauseClick}
@@ -892,13 +898,6 @@ const App: React.FC = () => {
             stopMediaStream();
         }}
         onSelectSource={handleSourceSelected}
-        onFileSelectClick={handleFileSelectClick}
-        lang={lang}
-      />}
-      {showFileInstructionsModal && audioFile && <FileInstructionsModal
-        fileName={audioFile.name}
-        onClose={handleCancelFileTranscriptionFlow}
-        onConfirm={handleStartFileTranscriptionFlow}
         lang={lang}
       />}
       {showHistoryModal && <HistoryModal
@@ -921,11 +920,10 @@ const App: React.FC = () => {
 
       {/* Hidden elements for functionality */}
       <audio ref={streamAudioRef} playsInline muted />
-      <audio ref={fileAudioRef} onEnded={stopTranscriptionSession} />
       <input
         type="file"
         ref={fileInputRef}
-        onChange={handleFileSelected}
+        onChange={handleFileSelectedForTranscription}
         accept="audio/*"
         style={{ display: 'none' }}
       />
