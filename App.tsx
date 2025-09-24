@@ -14,7 +14,6 @@ import { HistoryModal } from './components/HistoryModal';
 import { ContextualActionBar } from './components/ContextualActionBar';
 import { InsightsPanel } from './components/InsightsPanel';
 import { ApiKeyModal } from './components/ApiKeyModal';
-import { ProofreadResultModal } from './components/ProofreadResultModal';
 import { produce } from 'immer';
 import { t, Language } from './utils/translations';
 import { useHistoryState } from './hooks/useHistoryState';
@@ -80,8 +79,6 @@ const App: React.FC = () => {
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [selectedTextStyle, setSelectedTextStyle] = useState<TextStyle>('default');
-  const [showProofreadModal, setShowProofreadModal] = useState(false);
-  const [proofreadResult, setProofreadResult] = useState('');
   const [showNotebookLMInstructionsModal, setShowNotebookLMInstructionsModal] = useState(false);
 
   const { sessions, saveSession, deleteSession, getSessionAudio, updateSessionAnalysis } = useSessionHistory();
@@ -812,8 +809,11 @@ const App: React.FC = () => {
     setIsAIProcessing(prev => ({ ...prev, proofread: true }));
     try {
         const result = await getProofreadAndStyledText(geminiApiKey, conversationText, selectedTextStyle, lang);
-        setProofreadResult(result);
-        setShowProofreadModal(true);
+        const newResult = produce(analysisResult || createEmptyAnalysisResult(), draft => {
+            draft.styledText = { style: selectedTextStyle, text: result };
+        });
+        setAnalysisResult(newResult);
+        await updateSessionAnalysis(loadedSession.id, newResult);
     } catch (error) {
         console.error("Proofread & Style failed:", error);
         alert(t('aiError', lang));
@@ -822,15 +822,46 @@ const App: React.FC = () => {
     }
   };
 
+  const handleClearStyledText = async () => {
+    if (!loadedSession) return;
+    const newResult = produce(analysisResult!, draft => {
+        delete draft.styledText;
+    });
+    setAnalysisResult(newResult);
+    await updateSessionAnalysis(loadedSession.id, newResult);
+  };
+
   type AnalysisType = 'summary' | 'actionItems' | 'keyTopics';
   type ExportFormat = 'copy' | 'txt' | 'notebooklm';
 
+  const exportContent = (content: string, title: string, format: ExportFormat) => {
+      if (format === 'notebooklm') {
+          content = `# ${t('sessionNameDefault', lang)}: ${sessionName}\n\n## ${title}\n\n${content}`;
+      }
+
+      if (format === 'copy') {
+          navigator.clipboard.writeText(content).then(() => {
+            alert(t('copySuccess', lang));
+          }).catch(err => {
+            console.error(`Failed to copy ${title}: `, err);
+            alert(t('copyFail', lang));
+          });
+      } else { // 'txt' or 'notebooklm'
+          const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const sanitizedType = title.replace(/\s+/g, '_');
+          a.download = `${sanitizeFileName(sessionName)}_${sanitizedType}.txt`;
+          a.click();
+          URL.revokeObjectURL(url);
+      }
+  };
+
   const handleExportAnalysis = (type: AnalysisType, format: ExportFormat) => {
       if (!analysisResult) return;
-
       let content = '';
       let title = '';
-
       switch (type) {
           case 'summary':
               content = analysisResult.summary;
@@ -845,30 +876,14 @@ const App: React.FC = () => {
               title = t('keyTopics', lang);
               break;
       }
+      if (content) exportContent(content, title, format);
+  };
 
-      if (!content) return;
-
-      if (format === 'notebooklm') {
-          content = `# ${t('sessionNameDefault', lang)}: ${sessionName}\n\n## ${title}\n\n${content}`;
-      }
-
-      if (format === 'copy') {
-          navigator.clipboard.writeText(content).then(() => {
-            alert(t('copySuccess', lang));
-          }).catch(err => {
-            console.error('Failed to copy analysis: ', err);
-            alert(t('copyFail', lang));
-          });
-      } else { // 'txt' or 'notebooklm'
-          const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          const sanitizedType = title.replace(/\s+/g, '_');
-          a.download = `${sanitizeFileName(sessionName)}_${sanitizedType}.txt`;
-          a.click();
-          URL.revokeObjectURL(url);
-      }
+  const handleExportStyledText = (format: ExportFormat) => {
+      if (!analysisResult?.styledText) return;
+      const content = analysisResult.styledText.text;
+      const title = t('proofreadResultTitle', lang);
+      if (content) exportContent(content, title, format);
   };
 
   useEffect(() => {
@@ -951,6 +966,8 @@ const App: React.FC = () => {
             onExtractActionItems={handleExtractActionItems}
             onExtractTopics={handleExtractTopics}
             onExportAnalysis={handleExportAnalysis}
+            onExportStyledText={handleExportStyledText}
+            onClearStyledText={handleClearStyledText}
             analysisResult={analysisResult}
             isProcessing={isAIProcessing}
             isSessionLoaded={!!loadedSession}
@@ -1006,11 +1023,6 @@ const App: React.FC = () => {
       {showApiKeyModal && <ApiKeyModal 
         onClose={() => setShowApiKeyModal(false)}
         onSave={handleApiKeySave}
-        lang={lang}
-      />}
-      {showProofreadModal && <ProofreadResultModal
-        result={proofreadResult}
-        onClose={() => setShowProofreadModal(false)}
         lang={lang}
       />}
       {showNotebookLMInstructionsModal && <NotebookLMInstructionsModal 

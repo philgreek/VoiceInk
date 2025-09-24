@@ -33,6 +33,10 @@ export interface AnalysisResult {
   summary: string;
   actionItems: ActionItem[];
   keyTopics: string[];
+  styledText?: {
+    style: TextStyle;
+    text: string;
+  };
 }
 
 export type TextStyle = 

@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AnalysisResult, TextStyle } from '../types';
 import { t, Language } from '../utils/translations';
-import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon, EditIcon, EllipsisVerticalIcon, ClipboardIcon, DownloadIcon, NotebookIcon } from './icons';
+import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon, EditIcon, EllipsisVerticalIcon, ClipboardIcon, DownloadIcon, NotebookIcon, RefreshCwIcon } from './icons';
 
 interface InsightsPanelProps {
   isOpen: boolean;
@@ -18,6 +18,8 @@ interface InsightsPanelProps {
   selectedStyle: TextStyle;
   onStyleChange: (style: TextStyle) => void;
   onExportAnalysis: (type: 'summary' | 'actionItems' | 'keyTopics', format: 'copy' | 'txt' | 'notebooklm') => void;
+  onExportStyledText: (format: 'copy' | 'txt' | 'notebooklm') => void;
+  onClearStyledText: () => void;
 }
 
 const textStyles: TextStyle[] = [
@@ -29,7 +31,7 @@ const LoadingSpinner: React.FC = () => (
     <div className="w-5 h-5 border-2 border-[var(--text-secondary)] border-t-transparent rounded-full animate-spin"></div>
 );
 
-const ExportMenu: React.FC<{ onExport: (format: 'copy' | 'txt' | 'notebooklm') => void, lang: Language }> = ({ onExport, lang }) => {
+const ExportMenu: React.FC<{ onExport: (format: 'copy' | 'txt' | 'notebooklm') => void, lang: Language, title: string }> = ({ onExport, lang, title }) => {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -50,7 +52,7 @@ const ExportMenu: React.FC<{ onExport: (format: 'copy' | 'txt' | 'notebooklm') =
             <button 
                 onClick={() => setIsOpen(prev => !prev)} 
                 className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-element)] rounded-full"
-                title={t('exportAnalysis', lang)}
+                title={title}
             >
                 <EllipsisVerticalIcon className="w-5 h-5"/>
             </button>
@@ -110,6 +112,8 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
   selectedStyle,
   onStyleChange,
   onExportAnalysis,
+  onExportStyledText,
+  onClearStyledText,
 }) => {
   if (!isOpen) return null;
 
@@ -135,7 +139,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                 <Section 
                     title={t('summary', lang)} 
                     icon={<FileTextIcon className="w-5 h-5"/>}
-                    actions={analysisResult?.summary && <ExportMenu onExport={(format) => onExportAnalysis('summary', format)} lang={lang} />}
+                    actions={analysisResult?.summary && <ExportMenu onExport={(format) => onExportAnalysis('summary', format)} lang={lang} title={t('exportAnalysis', lang)} />}
                 >
                     {analysisResult?.summary ? (
                         <p className="px-3 py-2 text-sm whitespace-pre-wrap">{analysisResult.summary}</p>
@@ -149,7 +153,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                 <Section 
                     title={t('actionItems', lang)} 
                     icon={<ListChecksIcon className="w-5 h-5"/>}
-                    actions={analysisResult?.actionItems && analysisResult.actionItems.length > 0 && <ExportMenu onExport={(format) => onExportAnalysis('actionItems', format)} lang={lang} />}
+                    actions={analysisResult?.actionItems && analysisResult.actionItems.length > 0 && <ExportMenu onExport={(format) => onExportAnalysis('actionItems', format)} lang={lang} title={t('exportAnalysis', lang)} />}
                 >
                     {analysisResult?.actionItems && analysisResult.actionItems.length > 0 ? (
                         <ul className="px-3 py-2 text-sm space-y-2">
@@ -172,7 +176,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                 <Section 
                     title={t('keyTopics', lang)} 
                     icon={<TagsIcon className="w-5 h-5"/>}
-                    actions={analysisResult?.keyTopics && analysisResult.keyTopics.length > 0 && <ExportMenu onExport={(format) => onExportAnalysis('keyTopics', format)} lang={lang} />}
+                    actions={analysisResult?.keyTopics && analysisResult.keyTopics.length > 0 && <ExportMenu onExport={(format) => onExportAnalysis('keyTopics', format)} lang={lang} title={t('exportAnalysis', lang)} />}
                 >
                     {analysisResult?.keyTopics && analysisResult.keyTopics.length > 0 ? (
                         <div className="px-3 py-2 flex flex-wrap gap-2">
@@ -191,27 +195,49 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
 
                 <div className="border-t border-[var(--border-color)] my-4"></div>
 
-                <Section title={t('textEditor', lang)} icon={<EditIcon className="w-5 h-5"/>}>
-                   <div className="px-3 py-2 space-y-3">
-                        <div>
-                            <label htmlFor="style-select" className="text-sm text-[var(--text-secondary)] mb-1 block">{t('selectStyle', lang)}</label>
-                            <select
-                                id="style-select"
-                                value={selectedStyle}
-                                onChange={(e) => onStyleChange(e.target.value as TextStyle)}
-                                className="w-full bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none"
-                            >
-                                {textStyles.map(style => (
-                                    <option key={style} value={style}>
-                                        {t(`style${style.charAt(0).toUpperCase() + style.slice(1)}` as any, lang)}
-                                    </option>
-                                ))}
-                            </select>
+                <Section 
+                    title={t('textEditor', lang)} 
+                    icon={<EditIcon className="w-5 h-5"/>}
+                    actions={analysisResult?.styledText && (
+                        <div className="flex items-center gap-2">
+                            <button onClick={onClearStyledText} className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-element)] rounded-full" title={t('changeStyle', lang)}>
+                                <RefreshCwIcon className="w-5 h-5"/>
+                            </button>
+                            <ExportMenu onExport={onExportStyledText} lang={lang} title={t('exportStyledText', lang)} />
                         </div>
-                        <button onClick={onProofreadAndStyle} disabled={isProcessing.proofread} className="flex items-center justify-center gap-2 w-full p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors disabled:opacity-70 disabled:cursor-wait">
-                            {isProcessing.proofread ? <><LoadingSpinner /> {t('generatingStyledText', lang)}</> : t('generatingStyledText', lang)}
-                        </button>
-                   </div>
+                    )}
+                >
+                    {isProcessing.proofread ? (
+                        <div className="flex items-center justify-center gap-2 w-full p-2 rounded-md">
+                            <LoadingSpinner /> 
+                            <span>{t('generatingStyledText', lang)}</span>
+                        </div>
+                    ) : analysisResult?.styledText ? (
+                        <div className="px-3 py-2 text-sm whitespace-pre-wrap bg-[var(--bg-subtle)] rounded-md">
+                            {analysisResult.styledText.text}
+                        </div>
+                    ) : (
+                       <div className="px-3 py-2 space-y-3">
+                            <div>
+                                <label htmlFor="style-select" className="text-sm text-[var(--text-secondary)] mb-1 block">{t('selectStyle', lang)}</label>
+                                <select
+                                    id="style-select"
+                                    value={selectedStyle}
+                                    onChange={(e) => onStyleChange(e.target.value as TextStyle)}
+                                    className="w-full bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none"
+                                >
+                                    {textStyles.map(style => (
+                                        <option key={style} value={style}>
+                                            {t(`style${style.charAt(0).toUpperCase() + style.slice(1)}` as any, lang)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <button onClick={onProofreadAndStyle} disabled={isProcessing.proofread} className="flex items-center justify-center gap-2 w-full p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors disabled:opacity-70 disabled:cursor-wait">
+                                {t('generateStyledText', lang)}
+                            </button>
+                       </div>
+                    )}
                 </Section>
             </>
         )}
