@@ -2,7 +2,7 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language, t } from "./translations";
-import { ActionItem, TextStyle, AIAgent, AIChatMessage, Entity } from "../types";
+import { ActionItem, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity } from "../types";
 
 const getAIClient = (apiKey: string) => new GoogleGenAI({ apiKey });
 
@@ -11,9 +11,6 @@ const handleAIError = (error: unknown, context: string): never => {
     throw new Error(`Failed to get ${context} from AI.`);
 };
 
-// FIX: Update to use GenerateContentResponse and access text directly.
-// The .text accessor will throw if the response is blocked or has no text,
-// which is caught by the outer try/catch blocks.
 const safelyGetText = (response: GenerateContentResponse): string => {
     return response.text.trim();
 };
@@ -29,7 +26,6 @@ export const getSummary = async (apiKey: string, text: string, lang: Language): 
         ---
         `;
 
-// FIX: Add explicit type for the API response.
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
@@ -44,7 +40,7 @@ export const getSummary = async (apiKey: string, text: string, lang: Language): 
 export const getActionItems = async (apiKey: string, text: string, lang: Language): Promise<ActionItem[]> => {
     try {
         const ai = getAIClient(apiKey);
-        const prompt = `Analyze the following conversation transcript and extract all specific action items, tasks, or follow-ups mentioned. Respond in the same language as the transcript (${lang}).
+        const prompt = `Analyze the following conversation transcript and extract all specific action items, tasks, or follow-ups mentioned. Respond in the same language as the transcript (${lang}). Your response must be a valid JSON array of objects.
 
         Transcript:
         ---
@@ -52,7 +48,6 @@ export const getActionItems = async (apiKey: string, text: string, lang: Languag
         ---
         `;
 
-// FIX: Add explicit type for the API response.
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
@@ -84,7 +79,7 @@ export const getActionItems = async (apiKey: string, text: string, lang: Languag
 export const getKeyTopics = async (apiKey: string, text: string, lang: Language): Promise<string[]> => {
     try {
         const ai = getAIClient(apiKey);
-        const prompt = `Analyze the following conversation transcript and identify the main topics or themes discussed. Return a list of 3-5 key topics. Respond in the same language as the transcript (${lang}).
+        const prompt = `Analyze the following conversation transcript and identify the main topics or themes discussed. Return a list of 3-5 key topics. Respond in the same language as the transcript (${lang}). Your response must be a valid JSON array of strings.
 
         Transcript:
         ---
@@ -92,7 +87,6 @@ export const getKeyTopics = async (apiKey: string, text: string, lang: Language)
         ---
         `;
 
-// FIX: Add explicit type for the API response.
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
@@ -141,7 +135,6 @@ export const getProofreadAndStyledText = async (apiKey: string, text: string, st
         ---
         `;
 
-// FIX: Add explicit type for the API response.
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
@@ -153,37 +146,56 @@ export const getProofreadAndStyledText = async (apiKey: string, text: string, st
     }
 };
 
-const agentSystemInstructions: Record<AIAgent, string> = {
+const agentExpertiseInstructions: Record<AIAgentExpertise, string> = {
+    interviewer: "As an Interviewer, your goal is to assess the conversation. Identify the key questions asked and the quality of the answers. Note the speaker's communication skills, confidence, and knowledge. Point out strengths and weaknesses.",
+    reporter: "As a Reporter, your goal is to find the story. Extract the most newsworthy facts, quotes, and events from the text. Structure your analysis like a news brief, focusing on the who, what, when, where, and why.",
+    recruiter: "As a Recruiter, analyze the transcript from a hiring perspective. Evaluate the candidate's skills, experience, and cultural fit based on their responses. Identify red flags or positive signals.",
+    sociologist: "As a Sociologist, examine the social dynamics within the conversation. Analyze power structures, social norms, group identity, and cultural references. Comment on how the speakers' interactions reflect broader social patterns.",
+    screenwriter: "As a Screenwriter, look for dramatic potential. Identify the core conflict, character arcs, key plot points, and memorable lines of dialogue. Suggest how this conversation could be adapted into a scene.",
+    translator: "As a Translator & Linguist, focus on the nuances of language. Analyze the use of idiom, slang, tone, and subtext. Identify potential translation challenges or cross-cultural communication issues.",
+    marketing_analyst: "As a Marketing Analyst, analyze the conversation for customer insights. Identify pain points, needs, brand perceptions, and purchasing signals. Extract any data that could inform a marketing strategy.",
+    tech_support: "As a Tech Support Specialist, your goal is to solve the problem. Identify the technical issue described, the steps taken to troubleshoot it, and the proposed solution. Structure the analysis as a support ticket summary.",
+    business_analyst: "As a Business Analyst, focus on processes, requirements, and stakeholders. Identify business needs, potential improvements, and key performance indicators (KPIs) mentioned in the conversation.",
+    financial_advisor: "As a Financial Advisor, scrutinize the text for any financial data, budget discussions, investment opportunities, costs, revenues, and economic risks. Provide a concise analysis of the financial situation.",
+    financial: "As a Financial Analyst, scrutinize the text for any financial data, budget discussions, investment opportunities, costs, revenues, and economic risks. Provide a concise analysis of the financial situation as described in the conversation.",
+    project_manager: "As a Project Manager, identify project goals, timelines, resources, risks, and stakeholder responsibilities. Extract a list of action items and key decisions.",
+    course_developer: "As a Course Developer, analyze the transcript for educational content. Identify key learning objectives, concepts, and examples. Suggest how this content could be structured into a lesson or course module.",
+    academic_researcher: "As an Academic Researcher, analyze the text for a research hypothesis, evidence, and conclusions. Identify the core arguments, methodologies discussed, and contributions to a field of knowledge.",
+    therapist: "As a Therapist/Counselor, analyze the conversation's emotional dynamics, communication patterns, and underlying psychological themes. Offer insights into the speakers' states of mind, potential conflicts, and relational dynamics. Use professional psychological terminology appropriately.",
+    psychologist: "As a Psychologist and Supervisor. Analyze the conversation's emotional dynamics, communication patterns, and underlying psychological themes. Offer insights into the speakers' states of mind, potential conflicts, and relational dynamics. Use professional psychological terminology appropriately.",
+    legal_assistant: "As a Legal Assistant/Paralegal, analyze the text from a legal perspective. Identify potential risks, liabilities, contractual obligations, and legal implications. Provide precise, cautious, and professional advice. Do not provide definitive legal counsel, but highlight areas that may require legal attention.",
     legal: "You are a Legal Advisor. Analyze the text from a legal perspective. Identify potential risks, liabilities, contractual obligations, and legal implications. Provide precise, cautious, and professional advice. Do not provide definitive legal counsel, but highlight areas that may require legal attention.",
-    psychologist: "You are a Psychologist and Supervisor. Analyze the conversation's emotional dynamics, communication patterns, and underlying psychological themes. Offer insights into the speakers' states of mind, potential conflicts, and relational dynamics. Use professional psychological terminology appropriately.",
-    coach: "You are a Performance and Business Coach. Focus on goals, strategies, motivation, and actionable feedback. Identify opportunities for growth, skill development, and improved performance mentioned in the text. Your tone should be encouraging and forward-looking.",
-    editor: "You are a professional Editor. Analyze the text for clarity, conciseness, structure, and style. Suggest improvements to the language and flow. Do not just correct grammar, but enhance the overall readability and impact of the text.",
-    financial: "You are a Financial Analyst. Scrutinize the text for any financial data, budget discussions, investment opportunities, costs, revenues, and economic risks. Provide a concise analysis of the financial situation as described in the conversation.",
-    tutor: "You are a Tutor. Analyze the conversation to identify knowledge gaps, misunderstandings, or areas where a speaker could improve their understanding. Explain complex topics simply and ask clarifying questions. Your goal is to educate and clarify.",
-    speechwriter: "You are a Speechwriter. Your task is to transform the key ideas from the conversation into a compelling speech, presentation, or monologue. Focus on creating a strong narrative, clear structure, and persuasive language. Identify the core message and build a powerful argument around it."
+    detective: "As a Detective/Analyst, look for inconsistencies, hidden meanings, and evidence. Analyze the statements for credibility, motive, and opportunity. Piece together a timeline of events based on the conversation.",
+    chef_nutritionist: "As a Chef/Nutritionist, analyze the conversation for discussions about food, recipes, dietary habits, and health goals. Extract recipes, meal plans, or provide nutritional advice based on the text.",
+    customer_manager: "As a Customer Relationship Manager, analyze the conversation to gauge customer satisfaction. Identify complaints, positive feedback, and opportunities to improve the customer experience.",
+    coach: "As a Performance and Business Coach. Focus on goals, strategies, motivation, and actionable feedback. Identify opportunities for growth, skill development, and improved performance mentioned in the text. Your tone should be encouraging and forward-looking.",
+    editor: "As a professional Editor. Analyze the text for clarity, conciseness, structure, and style. Suggest improvements to the language and flow. Do not just correct grammar, but enhance the overall readability and impact of the text.",
+    tutor: "As a Tutor. Analyze the conversation to identify knowledge gaps, misunderstandings, or areas where a speaker could improve their understanding. Explain complex topics simply and ask clarifying questions. Your goal is to educate and clarify.",
+    speechwriter: "As a Speechwriter. Your task is to transform the key ideas from the conversation into a compelling speech, presentation, or monologue. Focus on creating a strong narrative, clear structure, and persuasive language. Identify the core message and build a powerful argument around it."
 };
 
-export const getAgentResponse = async (apiKey: string, text: string, agents: AIAgent[], lang: Language, chatHistory: AIChatMessage[]): Promise<string> => {
+export const getAgentResponse = async (apiKey: string, text: string, agents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] }, lang: Language, chatHistory: AIChatMessage[]): Promise<string> => {
     try {
         const ai = getAIClient(apiKey);
         
-        const systemInstructions = agents
-            .map(agent => agentSystemInstructions[agent])
+        const expertiseInstructions = agents.expertise
+            .map(exp => agentExpertiseInstructions[exp])
             .join("\n\n");
-            
-        const fullSystemInstruction = `You are a multi-disciplinary AI expert. Your current active roles are: ${agents.join(', ')}.
-        ${systemInstructions}
-        You have been provided with a conversation transcript as the primary context. Answer the user's questions based on this transcript. Respond in ${lang}.`;
         
-// FIX: Construct the full chat history and pass it to the 'contents' property.
-// The previous implementation was incorrectly discarding the chat history.
+        const expertiseNames = agents.expertise.map(e => t(`agent${e.charAt(0).toUpperCase() + e.slice(1)}` as any, lang)).join(', ');
+        const domainNames = agents.domains.map(d => t(`domain${d.charAt(0).toUpperCase() + d.slice(1)}` as any, lang)).join(', ');
+
+        let fullSystemInstruction = `You are a multi-disciplinary AI expert. Your current active expert roles are: ${expertiseNames}.
+        ${expertiseInstructions}
+        You must apply this expertise strictly within the following domains: ${domainNames}.
+        You have been provided with a conversation transcript as the primary context. Answer the user's questions based ONLY on this transcript, through the combined lens of your active roles and domains. Respond in ${lang}.`;
+
         const contents: AIChatMessage[] = [
             { role: 'user', parts: [{ text: `Here is the conversation transcript for context:\n\n---\n${text}\n---` }] },
-            { role: 'model', parts: [{ text: `Understood. I have reviewed the transcript. I am ready to answer your questions based on my active roles: ${agents.join(', ')}.` }] },
+            { role: 'model', parts: [{ text: `Understood. I have reviewed the transcript. I am ready to answer your questions based on my active roles as a ${expertiseNames} specializing in ${domainNames}.` }] },
             ...chatHistory
         ];
 
-// FIX: Add explicit type for the API response.
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: contents,
@@ -201,7 +213,7 @@ export const getAgentResponse = async (apiKey: string, text: string, agents: AIA
 export const extractEntities = async (apiKey: string, text: string, lang: Language): Promise<Entity[]> => {
     try {
         const ai = getAIClient(apiKey);
-        const prompt = `Analyze the following conversation transcript in ${lang} and extract key entities. Identify names of people, organizations, specific dates, locations, and monetary values.
+        const prompt = `Analyze the following conversation transcript in ${lang} and extract key entities. Identify names of people, organizations, specific dates (like "tomorrow" or "next week" are also valid), locations, and monetary values.
 
         Transcript:
         ---
@@ -209,7 +221,6 @@ export const extractEntities = async (apiKey: string, text: string, lang: Langua
         ---
         `;
 
-// FIX: Add explicit type for the API response.
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,

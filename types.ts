@@ -1,4 +1,5 @@
 
+
 export interface Message {
   id: string;
   text: string;
@@ -68,15 +69,53 @@ export type TextStyle =
   | 'legal' 
   | 'scientific';
 
-export type AIAgent = 
-  | 'legal'
+export type AIAgentExpertise = 
+  | 'interviewer'
+  | 'reporter'
+  | 'recruiter'
+  | 'sociologist'
+  | 'screenwriter'
+  | 'translator'
+  | 'marketing_analyst'
+  | 'tech_support'
+  | 'business_analyst'
+  | 'financial_advisor'
+  | 'project_manager'
+  | 'course_developer'
+  | 'academic_researcher'
+  | 'therapist'
+  | 'legal_assistant'
+  | 'detective'
+  | 'chef_nutritionist'
+  | 'customer_manager'
   | 'psychologist'
   | 'coach'
   | 'editor'
-  | 'financial'
   | 'tutor'
-  | 'speechwriter';
+  | 'speechwriter'
+  | 'financial' // Legacy, maps to financial_advisor
+  | 'legal'; // Legacy, maps to legal_assistant
 
+export type AIAgentDomain =
+  | 'general'
+  | 'technology'
+  | 'finance'
+  | 'healthcare'
+  | 'law'
+  | 'education'
+  | 'art_culture'
+  | 'science'
+  | 'business_management'
+  | 'human_resources'
+  | 'marketing_sales'
+  | 'customer_service'
+  | 'psychology'
+  | 'career_development'
+  | 'cooking_nutrition'
+  | 'journalism'
+  | 'filmmaking'
+  | 'constitutional_law'
+  | 'litigation';
 
 export interface Session {
   id:string;

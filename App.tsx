@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle, AIAgent, AIChatMessage, Entity } from './types';
+import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity } from './types';
 import { Header } from './components/Header';
 import { SessionBar } from './components/SessionBar';
 import { ChatWindow } from './components/ChatWindow';
@@ -15,6 +15,7 @@ import { HistoryModal } from './components/HistoryModal';
 import { ContextualActionBar } from './components/ContextualActionBar';
 import { InsightsPanel } from './components/InsightsPanel';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { AgentConfigModal } from './components/AgentConfigModal';
 import { produce } from 'immer';
 import { t, Language } from './utils/translations';
 import { useHistoryState } from './hooks/useHistoryState';
@@ -75,15 +76,16 @@ const App: React.FC = () => {
   const [playbackTime, setPlaybackTime] = useState(0);
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
   const [showInsightsPanel, setShowInsightsPanel] = useState(false);
+  const [isInsightsPanelExpanded, setIsInsightsPanelExpanded] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAIProcessing, setIsAIProcessing] = useState({ summary: false, actionItems: false, topics: false, proofread: false, agent: false, entities: false });
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [showAgentConfigModal, setShowAgentConfigModal] = useState(false);
   const [selectedTextStyle, setSelectedTextStyle] = useState<TextStyle>('default');
   const [showNotebookLMInstructionsModal, setShowNotebookLMInstructionsModal] = useState(false);
-  const [selectedAIAgents, setSelectedAIAgents] = useState<AIAgent[]>([]);
-  const [aiChatHistory, setAiChatHistory] = useState<AIChatMessage[]>([]);
-
+  const [selectedAIAgents, setSelectedAIAgents] = useState<{ expertise: AIAgentExpertise[], domains: AIAgentDomain[] }>({ expertise: [], domains: [] });
+  
   const { sessions, saveSession, deleteSession, getSessionAudio, updateSessionAnalysis } = useSessionHistory();
 
   const streamAudioRef = useRef<HTMLAudioElement>(null);
@@ -118,11 +120,11 @@ const App: React.FC = () => {
             messages, 
             settings, 
             hasAudio: !!audioBlob,
-            analysisResult: null,
+            analysisResult,
         }, audioBlob);
         setLoadedSession({ ...newSession, audioBlob });
     }
-  }, [messages, sessionName, settings, saveSession]);
+  }, [messages, sessionName, settings, saveSession, analysisResult]);
 
   const handleFinalTranscript = useCallback((transcript: string) => {
     if (!transcript) return;
@@ -255,7 +257,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setAnalysisResult(loadedSession?.analysisResult || null);
-    setAiChatHistory(loadedSession?.analysisResult?.aiChatHistory || []);
   }, [loadedSession]);
 
   const stopMediaStream = useCallback(() => {
@@ -375,7 +376,7 @@ const App: React.FC = () => {
           name: file.name,
           messages: resultMessages,
           settings,
-          hasAudio: false, // We don't save the original audio for now
+          hasAudio: false,
           analysisResult: null,
         }, null);
 
@@ -839,24 +840,24 @@ const App: React.FC = () => {
 
   const handleAskAIAgent = async (prompt: string) => {
     if (!geminiApiKey) { setShowApiKeyModal(true); return; }
-    if (!loadedSession || selectedAIAgents.length === 0) return;
+    if (!loadedSession || selectedAIAgents.expertise.length === 0) return;
     const conversationText = formatChatForExport(true);
     if (!conversationText) return;
 
-// FIX: Explicitly type the new history array to prevent type widening of the 'role' property.
-    const currentChatHistory: AIChatMessage[] = [...aiChatHistory, { role: 'user', parts: [{ text: prompt }] }];
-    setAiChatHistory(currentChatHistory);
+    const currentHistory = analysisResult?.aiChatHistory || [];
+    const newHistory: AIChatMessage[] = [...currentHistory, { role: 'user', parts: [{ text: prompt }] }];
+    
+    setAnalysisResult(produce(analysisResult || createEmptyAnalysisResult(), draft => {
+        draft.aiChatHistory = newHistory;
+    }));
     setIsAIProcessing(prev => ({ ...prev, agent: true }));
 
     try {
-// FIX: Pass the updated chat history including the latest user prompt.
-      const response = await getAgentResponse(geminiApiKey, conversationText, selectedAIAgents, lang, currentChatHistory);
-// FIX: Explicitly type the new history array.
-      const newHistory: AIChatMessage[] = [...currentChatHistory, { role: 'model', parts: [{ text: response }] }];
-      setAiChatHistory(newHistory);
+      const response = await getAgentResponse(geminiApiKey, conversationText, selectedAIAgents, lang, newHistory);
+      const finalHistory: AIChatMessage[] = [...newHistory, { role: 'model', parts: [{ text: response }] }];
       
       const newResult = produce(analysisResult || createEmptyAnalysisResult(), draft => {
-          draft.aiChatHistory = newHistory;
+          draft.aiChatHistory = finalHistory;
       });
       setAnalysisResult(newResult);
       await updateSessionAnalysis(loadedSession.id, newResult);
@@ -864,9 +865,10 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("AI Agent chat failed:", error);
       alert(t('aiError', lang));
-// FIX: Explicitly type the new history array.
-      const newHistory: AIChatMessage[] = currentChatHistory.slice(0, -1); // Remove user prompt on error
-      setAiChatHistory(newHistory);
+      const finalHistory = newHistory.slice(0, -1); // Remove user prompt on error
+       setAnalysisResult(produce(analysisResult || createEmptyAnalysisResult(), draft => {
+          draft.aiChatHistory = finalHistory;
+      }));
     } finally {
       setIsAIProcessing(prev => ({ ...prev, agent: false }));
     }
@@ -959,7 +961,7 @@ const App: React.FC = () => {
   return (
     <div className="h-screen w-screen flex flex-col bg-[var(--bg-main)] text-[var(--text-primary)]">
       <div className="flex flex-grow overflow-hidden">
-        <div className="flex-grow flex flex-col">
+        <div className={`flex-grow flex flex-col transition-all duration-300 ${showInsightsPanel && !isInsightsPanelExpanded ? 'sm:mr-96' : ''}`}>
           <Header 
             onExport={() => setShowExportModal(true)} 
             onClear={handleClear} 
@@ -1026,7 +1028,12 @@ const App: React.FC = () => {
         </div>
         <InsightsPanel
             isOpen={showInsightsPanel}
-            onClose={() => setShowInsightsPanel(false)}
+            isExpanded={isInsightsPanelExpanded}
+            onToggleExpand={() => setIsInsightsPanelExpanded(prev => !prev)}
+            onClose={() => {
+              setShowInsightsPanel(false);
+              setIsInsightsPanelExpanded(false);
+            }}
             onGenerateSummary={handleGenerateSummary}
             onExtractActionItems={handleExtractActionItems}
             onExtractTopics={handleExtractTopics}
@@ -1041,9 +1048,8 @@ const App: React.FC = () => {
             selectedStyle={selectedTextStyle}
             onStyleChange={setSelectedTextStyle}
             onAskAIAgent={handleAskAIAgent}
-            aiChatHistory={aiChatHistory}
             selectedAIAgents={selectedAIAgents}
-            onSelectedAIAgentsChange={setSelectedAIAgents}
+            onShowAgentConfig={() => setShowAgentConfigModal(true)}
             onExtractEntities={handleExtractEntities}
         />
       </div>
@@ -1093,6 +1099,15 @@ const App: React.FC = () => {
       {showApiKeyModal && <ApiKeyModal 
         onClose={() => setShowApiKeyModal(false)}
         onSave={handleApiKeySave}
+        lang={lang}
+      />}
+      {showAgentConfigModal && <AgentConfigModal
+        initialSelectedAgents={selectedAIAgents}
+        onClose={() => setShowAgentConfigModal(false)}
+        onSave={(newAgents) => {
+          setSelectedAIAgents(newAgents);
+          setShowAgentConfigModal(false);
+        }}
         lang={lang}
       />}
       {showNotebookLMInstructionsModal && <NotebookLMInstructionsModal 
