@@ -175,8 +175,38 @@ const App: React.FC = () => {
   }, [lang]);
   
   useEffect(() => {
-    // Selection context logic remains the same...
-  }, []);
+    const handleSelection = () => {
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        let container = range.commonAncestorContainer;
+        if (container.nodeType === Node.TEXT_NODE) {
+          container = container.parentElement!;
+        }
+        const messageElement = (container as HTMLElement).closest('[data-message-id]');
+        if (messageElement) {
+          const messageId = messageElement.getAttribute('data-message-id');
+          const text = selection.toString().trim();
+          if (messageId && text) {
+            setSelectionContext({ messageId, text });
+            return;
+          }
+        }
+      }
+      if (selectionContext) {
+        setTimeout(() => {
+          const currentSelection = window.getSelection();
+          if (!currentSelection || currentSelection.isCollapsed) {
+            setSelectionContext(null);
+          }
+        }, 200);
+      }
+    };
+    document.addEventListener('mouseup', handleSelection);
+    return () => {
+      document.removeEventListener('mouseup', handleSelection);
+    };
+  }, [selectionContext]);
 
   useEffect(() => {
     try {
@@ -274,6 +304,11 @@ const App: React.FC = () => {
     setShowAddSourceModal(false);
     if (!file && !url) return;
 
+    if (!geminiApiKey) {
+      setShowApiKeyModal(true);
+      return;
+    }
+
     if (transcriptionSource && !sessionName) {
         setSessionName(transcriptionSource.name);
     } else if (!transcriptionSource && !sessionName) {
@@ -289,6 +324,11 @@ const App: React.FC = () => {
         let sourceName: string;
         
         if (file) {
+            if (file.size > 4.5 * 1024 * 1024) {
+                alert(t('fileTooLargeError', lang, { maxSize: 4.5 }));
+                setIsProcessingSource(false);
+                return;
+            }
             body.append('file', file);
             sourceName = file.name;
             if (file.type.startsWith('audio/')) {
@@ -306,6 +346,9 @@ const App: React.FC = () => {
         
         const response = await fetch('/api/process-source', {
             method: 'POST',
+            headers: {
+              'X-API-Key': geminiApiKey,
+            },
             body,
         });
 
@@ -476,7 +519,6 @@ const App: React.FC = () => {
   
   const sanitizeFileName = (name: string) => name.replace(/[^a-z0-9_-s.]/gi, '_').replace(/\s+/g, '_').trim() || `chat-${new Date().toISOString()}`;
 
-  // FIX: Implement export handlers
   const handleSaveAsTxt = () => {
     const content = formatChatForExport();
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -931,11 +973,7 @@ const App: React.FC = () => {
     body.classList.add(`theme-${settings.theme}`);
   }, [settings.theme]);
 
-  const mainContentWidth = `
-    flex-grow flex flex-col transition-all duration-300
-    ${showSourcesPanel ? 'sm:ml-80' : ''}
-    ${showInsightsPanel && !isInsightsPanelExpanded ? 'sm:mr-96' : ''}
-  `;
+  const mainContentWidth = `relative z-20 bg-[var(--bg-main)] flex-grow flex flex-col transition-all duration-300 min-w-0`;
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[var(--bg-main)] text-[var(--text-primary)]">

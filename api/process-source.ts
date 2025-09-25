@@ -75,9 +75,9 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'API key not configured on the server' });
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey || typeof apiKey !== 'string') {
+    return res.status(401).json({ error: 'API key not configured on the server' });
   }
 
   try {
