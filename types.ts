@@ -131,6 +131,10 @@ export interface LoadedSession extends Session {
     audioBlob: Blob | null;
 }
 
+export type InsightsSectionState = {
+  [key in 'summary' | 'actionItems' | 'keyTopics' | 'textAnalysis' | 'textEditor' | 'aiChat']: boolean;
+};
+
 
 // Web Speech API types for TypeScript
 export interface SpeechRecognitionAlternative {

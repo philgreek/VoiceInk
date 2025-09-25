@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity } from './types';
+import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, InsightsSectionState } from './types';
 import { Header } from './components/Header';
 import { SessionBar } from './components/SessionBar';
 import { ChatWindow } from './components/ChatWindow';
@@ -48,6 +48,15 @@ const defaultSettings: Settings = {
   language: 'ru',
 };
 
+const initialInsightsSectionState: InsightsSectionState = {
+    summary: true,
+    actionItems: true,
+    keyTopics: true,
+    textAnalysis: true,
+    textEditor: true,
+    aiChat: true,
+};
+
 const App: React.FC = () => {
   const { 
     state: messages, 
@@ -77,6 +86,7 @@ const App: React.FC = () => {
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
   const [showInsightsPanel, setShowInsightsPanel] = useState(false);
   const [isInsightsPanelExpanded, setIsInsightsPanelExpanded] = useState(false);
+  const [insightsSectionState, setInsightsSectionState] = useState<InsightsSectionState>(initialInsightsSectionState);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAIProcessing, setIsAIProcessing] = useState({ summary: false, actionItems: false, topics: false, proofread: false, agent: false, entities: false });
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
@@ -896,8 +906,6 @@ const App: React.FC = () => {
     }
   };
 
-
-  type AnalysisType = 'summary' | 'actionItems' | 'keyTopics';
   type ExportFormat = 'copy' | 'txt' | 'notebooklm';
 
   const exportContent = (content: string, title: string, format: ExportFormat) => {
@@ -924,7 +932,7 @@ const App: React.FC = () => {
       }
   };
 
-  const handleExportAnalysis = (type: AnalysisType, format: ExportFormat) => {
+  const handleExportAnalysis = (type: keyof Omit<AnalysisResult, 'styledText' | 'entities' | 'aiChatHistory'>, format: ExportFormat) => {
       if (!analysisResult) return;
       let content = '';
       let title = '';
@@ -966,6 +974,46 @@ const App: React.FC = () => {
     
     const title = t('aiChat', lang);
     exportContent(chatContent, title, format);
+  };
+
+  const handleExportAllAnalysis = (format: ExportFormat) => {
+    if (!analysisResult) return;
+    
+    let fullContent = '';
+    let title = t('insights', lang);
+
+    if (analysisResult.summary) {
+        fullContent += `## ${t('summary', lang)}\n\n${analysisResult.summary}\n\n---\n\n`;
+    }
+    if (analysisResult.actionItems && analysisResult.actionItems.length > 0) {
+        const items = analysisResult.actionItems.map(item => `- ${item.task}`).join('\n');
+        fullContent += `## ${t('actionItems', lang)}\n\n${items}\n\n---\n\n`;
+    }
+    if (analysisResult.keyTopics && analysisResult.keyTopics.length > 0) {
+        const topics = analysisResult.keyTopics.map(topic => `- ${topic}`).join('\n');
+        fullContent += `## ${t('keyTopics', lang)}\n\n${topics}\n\n---\n\n`;
+    }
+    if (analysisResult.styledText) {
+        fullContent += `## ${t('proofreadResultTitle', lang)} (${t(`style${analysisResult.styledText.style.charAt(0).toUpperCase() + analysisResult.styledText.style.slice(1)}` as any, lang)})\n\n${analysisResult.styledText.text}\n\n---\n\n`;
+    }
+    if (analysisResult.aiChatHistory && analysisResult.aiChatHistory.length > 0) {
+        const agentExpertiseNames = selectedAIAgents.expertise.map(e => t(`agent${e.charAt(0).toUpperCase() + e.slice(1)}` as any, lang)).join(', ');
+        const agentDomainNames = selectedAIAgents.domains.map(d => t(`domain${d.charAt(0).toUpperCase() + d.slice(1)}` as any, lang)).join(', ');
+        const agentTitle = `${agentExpertiseNames}${agentDomainNames.length > 0 ? ` (${agentDomainNames})` : ''}`;
+        const chatContent = analysisResult.aiChatHistory.map(msg => {
+            const speaker = msg.role === 'user' ? t('you', lang) : `${t('assistant', lang)}: ${agentTitle}`;
+            return `${speaker}:\n${msg.parts[0].text}`;
+        }).join('\n\n');
+        fullContent += `## ${t('aiChat', lang)}\n\n${chatContent}\n\n`;
+    }
+
+    if (fullContent) {
+        exportContent(fullContent.trim(), title, format);
+    }
+  };
+  
+  const handleToggleInsightsSection = (section: keyof InsightsSectionState) => {
+    setInsightsSectionState(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
   useEffect(() => {
@@ -1068,6 +1116,9 @@ const App: React.FC = () => {
             onShowAgentConfig={() => setShowAgentConfigModal(true)}
             onExtractEntities={handleExtractEntities}
             onExportAIChat={handleExportAIChat}
+            sectionState={insightsSectionState}
+            onToggleSection={handleToggleInsightsSection}
+            onExportAll={handleExportAllAnalysis}
         />
       </div>
 

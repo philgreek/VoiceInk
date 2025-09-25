@@ -214,6 +214,7 @@ export const translations = {
     domainLitigation: 'Litigation',
     expand: 'Expand',
     collapse: 'Collapse',
+    exportAllInsights: 'Export all insights',
   },
   ru: {
     voiceInk: 'VoiceInk',
@@ -429,6 +430,7 @@ export const translations = {
     domainLitigation: 'Судебные разбирательства',
     expand: 'Развернуть',
     collapse: 'Свернуть',
+    exportAllInsights: 'Экспортировать всю аналитику',
   },
   es: {
     // ... (same structure as 'en' and 'ru')

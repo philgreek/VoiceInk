@@ -1,10 +1,9 @@
 
 
 import React, { useState, useRef, useEffect } from 'react';
-import { AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain } from '../types';
+import { AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, InsightsSectionState } from '../types';
 import { t, Language } from '../utils/translations';
-import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon, EditIcon, EllipsisVerticalIcon, ClipboardIcon, DownloadIcon, NotebookIcon, RefreshCwIcon, UsersIcon, SendIcon, ScanTextIcon, MaximizeIcon, MinimizeIcon } from './icons';
-import { AgentConfigModal } from './AgentConfigModal';
+import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon, EditIcon, EllipsisVerticalIcon, ClipboardIcon, DownloadIcon, NotebookIcon, RefreshCwIcon, UsersIcon, SendIcon, ScanTextIcon, MaximizeIcon, MinimizeIcon, ChevronDownIcon } from './icons';
 
 interface InsightsPanelProps {
   isOpen: boolean;
@@ -29,6 +28,9 @@ interface InsightsPanelProps {
   onShowAgentConfig: () => void;
   onExtractEntities: () => void;
   onExportAIChat: (format: 'copy' | 'txt' | 'notebooklm') => void;
+  sectionState: InsightsSectionState;
+  onToggleSection: (section: keyof InsightsSectionState) => void;
+  onExportAll: (format: 'copy' | 'txt' | 'notebooklm') => void;
 }
 
 const textStyles: TextStyle[] = [
@@ -86,22 +88,29 @@ const ExportMenu: React.FC<{ onExport: (format: 'copy' | 'txt' | 'notebooklm') =
 };
 
 
-const Section: React.FC<{ 
+const CollapsibleSection: React.FC<{ 
     title: string; 
     icon: React.ReactNode; 
     children: React.ReactNode; 
     actions?: React.ReactNode;
-}> = ({ title, icon, children, actions }) => (
-    <div className="space-y-3">
-        <div className="flex justify-between items-center">
+    isExpanded: boolean;
+    onToggle: () => void;
+}> = ({ title, icon, children, actions, isExpanded, onToggle }) => (
+    <div className="border-b border-[var(--border-color)] pb-4">
+        <button onClick={onToggle} className="w-full flex justify-between items-center py-2">
             <h3 className="text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
                 {icon}
                 <span>{title}</span>
             </h3>
-            {actions}
-        </div>
-        <div className="text-[var(--text-secondary)] space-y-2 pl-1 border-l-2 border-[var(--border-color)]">
-            {children}
+            <div className="flex items-center gap-2">
+              {actions}
+              <ChevronDownIcon className={`w-5 h-5 text-[var(--text-secondary)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+            </div>
+        </button>
+        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[1000px] opacity-100 pt-2' : 'max-h-0 opacity-0'}`}>
+             <div className="text-[var(--text-secondary)] space-y-2 pl-1 border-l-2 border-[var(--border-color)]">
+                {children}
+            </div>
         </div>
     </div>
 );
@@ -112,10 +121,13 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
   onProofreadAndStyle, selectedStyle, onStyleChange,
   onExportAnalysis, onExportStyledText, onClearStyledText,
   onAskAIAgent, selectedAIAgents, onShowAgentConfig,
-  onExtractEntities, onExportAIChat
+  onExtractEntities, onExportAIChat,
+  sectionState, onToggleSection, onExportAll,
 }) => {
   const [agentPrompt, setAgentPrompt] = useState('');
   const aiChatEndRef = useRef<HTMLDivElement>(null);
+  
+  const hasAnyAnalysis = analysisResult && (analysisResult.summary || (analysisResult.actionItems && analysisResult.actionItems.length > 0) || (analysisResult.keyTopics && analysisResult.keyTopics.length > 0) || analysisResult.styledText || (analysisResult.aiChatHistory && analysisResult.aiChatHistory.length > 0));
 
   useEffect(() => {
     aiChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -152,6 +164,11 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
             <span>{t('insights', lang)}</span>
         </h2>
         <div className="flex items-center gap-2">
+            {hasAnyAnalysis && (
+                <div onClick={e => e.stopPropagation()}>
+                    <ExportMenu onExport={onExportAll} lang={lang} title={t('exportAllInsights', lang)} />
+                </div>
+            )}
             <button onClick={(e) => { e.stopPropagation(); onToggleExpand(); }} className="p-1 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-element-hover)] hover:text-[var(--text-primary)]" title={isExpanded ? t('collapse', lang) : t('expand', lang)}>
               {isExpanded ? <MinimizeIcon className="w-5 h-5" /> : <MaximizeIcon className="w-5 h-5" />}
             </button>
@@ -161,16 +178,18 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
         </div>
       </header>
       
-      <div className="p-4 flex-grow overflow-y-auto space-y-6">
+      <div className="p-4 flex-grow overflow-y-auto space-y-4">
         {!isSessionLoaded ? (
             <div className="text-center text-sm text-[var(--text-secondary)] p-4 bg-[var(--bg-subtle)] rounded-lg">
                 <p>{t('insightsDescription', lang)}</p>
             </div>
         ) : (
             <>
-                <Section 
+                <CollapsibleSection 
                     title={t('summary', lang)} 
                     icon={<FileTextIcon className="w-5 h-5"/>}
+                    isExpanded={sectionState.summary}
+                    onToggle={() => onToggleSection('summary')}
                     actions={analysisResult?.summary && <ExportMenu onExport={(format) => onExportAnalysis('summary', format)} lang={lang} title={t('exportAnalysis', lang)} />}
                 >
                     {analysisResult?.summary ? (
@@ -180,11 +199,13 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                             {isProcessing.summary ? <><LoadingSpinner /> {t('generatingSummary', lang)}</> : t('generateSummary', lang)}
                         </button>
                     )}
-                </Section>
+                </CollapsibleSection>
                 
-                <Section 
+                <CollapsibleSection 
                     title={t('actionItems', lang)} 
                     icon={<ListChecksIcon className="w-5 h-5"/>}
+                    isExpanded={sectionState.actionItems}
+                    onToggle={() => onToggleSection('actionItems')}
                     actions={analysisResult?.actionItems && analysisResult.actionItems.length > 0 && <ExportMenu onExport={(format) => onExportAnalysis('actionItems', format)} lang={lang} title={t('exportAnalysis', lang)} />}
                 >
                     {analysisResult?.actionItems && analysisResult.actionItems.length > 0 ? (
@@ -200,14 +221,16 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                         <p className="px-3 py-2 text-sm italic">{t('noActionItemsFound', lang)}</p>
                     ) : (
                          <button onClick={onExtractActionItems} disabled={isProcessing.actionItems} className="flex items-center justify-center gap-2 w-full p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors disabled:opacity-70 disabled:cursor-wait">
-                            {isProcessing.actionItems ? <><LoadingSpinner /> {t('extractingActionItems', lang)}</> : t('extractingActionItems', lang)}
+                            {isProcessing.actionItems ? <><LoadingSpinner /> {t('extractingActionItems', lang)}</> : t('extractActionItems', lang)}
                         </button>
                     )}
-                </Section>
+                </CollapsibleSection>
                 
-                <Section 
+                <CollapsibleSection 
                     title={t('keyTopics', lang)} 
                     icon={<TagsIcon className="w-5 h-5"/>}
+                    isExpanded={sectionState.keyTopics}
+                    onToggle={() => onToggleSection('keyTopics')}
                     actions={analysisResult?.keyTopics && analysisResult.keyTopics.length > 0 && <ExportMenu onExport={(format) => onExportAnalysis('keyTopics', format)} lang={lang} title={t('exportAnalysis', lang)} />}
                 >
                     {analysisResult?.keyTopics && analysisResult.keyTopics.length > 0 ? (
@@ -220,12 +243,17 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                          <p className="px-3 py-2 text-sm italic">{t('noKeyTopicsFound', lang)}</p>
                     ) : (
                         <button onClick={onExtractTopics} disabled={isProcessing.topics} className="flex items-center justify-center gap-2 w-full p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors disabled:opacity-70 disabled:cursor-wait">
-                            {isProcessing.topics ? <><LoadingSpinner /> {t('extractingKeyTopics', lang)}</> : t('extractingKeyTopics', lang)}
+                            {isProcessing.topics ? <><LoadingSpinner /> {t('extractingKeyTopics', lang)}</> : t('extractKeyTopics', lang)}
                         </button>
                     )}
-                </Section>
+                </CollapsibleSection>
 
-                <Section title={t('textAnalysis', lang)} icon={<ScanTextIcon className="w-5 h-5" />}>
+                <CollapsibleSection 
+                    title={t('textAnalysis', lang)} 
+                    icon={<ScanTextIcon className="w-5 h-5" />}
+                    isExpanded={sectionState.textAnalysis}
+                    onToggle={() => onToggleSection('textAnalysis')}
+                >
                      <div className="px-3 py-2">
                         {analysisResult?.entities && analysisResult.entities.length > 0 ? (
                             <p className="text-sm italic">{analysisResult.entities.length} entities found and highlighted in the chat.</p>
@@ -235,13 +263,13 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                             </button>
                         )}
                     </div>
-                </Section>
+                </CollapsibleSection>
 
-                <div className="border-t border-[var(--border-color)] my-4"></div>
-
-                <Section 
+                <CollapsibleSection 
                     title={t('textEditor', lang)} 
                     icon={<EditIcon className="w-5 h-5"/>}
+                    isExpanded={sectionState.textEditor}
+                    onToggle={() => onToggleSection('textEditor')}
                     actions={analysisResult?.styledText && (
                         <div className="flex items-center gap-2">
                             <button onClick={onClearStyledText} className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-element)] rounded-full" title={t('changeStyle', lang)}>
@@ -282,11 +310,12 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                             </button>
                        </div>
                     )}
-                </Section>
-                 <div className="border-t border-[var(--border-color)] my-4"></div>
-                <Section 
+                </CollapsibleSection>
+                <CollapsibleSection 
                     title={t('aiChat', lang)} 
                     icon={<UsersIcon className="w-5 h-5" />}
+                    isExpanded={sectionState.aiChat}
+                    onToggle={() => onToggleSection('aiChat')}
                     actions={analysisResult?.aiChatHistory && analysisResult.aiChatHistory.length > 0 && (
                         <ExportMenu onExport={onExportAIChat} lang={lang} title={t('exportAIChat', lang)} />
                     )}
@@ -323,7 +352,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                             </button>
                         </form>
                     </div>
-                </Section>
+                </CollapsibleSection>
             </>
         )}
       </div>
