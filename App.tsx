@@ -952,6 +952,22 @@ const App: React.FC = () => {
       if (content) exportContent(content, title, format);
   };
 
+  const handleExportAIChat = (format: ExportFormat) => {
+    if (!analysisResult?.aiChatHistory || analysisResult.aiChatHistory.length === 0) return;
+
+    const agentExpertiseNames = selectedAIAgents.expertise.map(e => t(`agent${e.charAt(0).toUpperCase() + e.slice(1)}` as any, lang)).join(', ');
+    const agentDomainNames = selectedAIAgents.domains.map(d => t(`domain${d.charAt(0).toUpperCase() + d.slice(1)}` as any, lang)).join(', ');
+    const agentTitle = `${agentExpertiseNames}${agentDomainNames.length > 0 ? ` (${agentDomainNames})` : ''}`;
+    
+    const chatContent = analysisResult.aiChatHistory.map(msg => {
+      const speaker = msg.role === 'user' ? t('you', lang) : `${t('assistant', lang)}: ${agentTitle}`;
+      return `${speaker}:\n${msg.parts[0].text}`;
+    }).join('\n\n');
+    
+    const title = t('aiChat', lang);
+    exportContent(chatContent, title, format);
+  };
+
   useEffect(() => {
     const body = document.body;
     body.className = '';
@@ -1051,6 +1067,7 @@ const App: React.FC = () => {
             selectedAIAgents={selectedAIAgents}
             onShowAgentConfig={() => setShowAgentConfigModal(true)}
             onExtractEntities={handleExtractEntities}
+            onExportAIChat={handleExportAIChat}
         />
       </div>
 

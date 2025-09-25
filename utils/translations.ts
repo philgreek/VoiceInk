@@ -150,6 +150,7 @@ export const translations = {
     fileInstructionNote: 'Note: This method uses your computer\'s audio output as the microphone, so it will capture any sound your computer is making.',
     continue: 'Continue',
     aiChat: 'AI Chat',
+    exportAIChat: 'Export AI Chat',
     configureAgent: 'Configure Agent',
     askAIAgent: 'Ask the configured AI agent...',
     agentThinking: 'Agent is thinking...',
@@ -364,6 +365,7 @@ export const translations = {
     fileInstructionNote: 'Примечание: Этот метод использует аудиовыход вашего компьютера в качестве микрофона, поэтому он будет захватывать любой звук, который издает ваш компьютер.',
     continue: 'Продолжить',
     aiChat: 'AI Чат',
+    exportAIChat: 'Экспорт AI-чата',
     configureAgent: 'Настроить агента',
     askAIAgent: 'Спросите настроенного AI-агента...',
     agentThinking: 'Агент думает...',
@@ -452,7 +454,7 @@ export type Language = keyof typeof translations;
 const languages: Language[] = ['es', 'fr', 'de', 'ja', 'zh'];
 languages.forEach(lang => {
     if (Object.keys(translations[lang]).length < Object.keys(translations.en).length) {
-        translations[lang] = { ...translations.en, ...translations[lang] };
+        translations[lang] = { ...translations.en, ...translations[lang], exportAIChat: 'Export AI Chat' };
     }
 });
 

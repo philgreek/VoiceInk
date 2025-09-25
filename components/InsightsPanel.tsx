@@ -28,6 +28,7 @@ interface InsightsPanelProps {
   selectedAIAgents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] };
   onShowAgentConfig: () => void;
   onExtractEntities: () => void;
+  onExportAIChat: (format: 'copy' | 'txt' | 'notebooklm') => void;
 }
 
 const textStyles: TextStyle[] = [
@@ -111,7 +112,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
   onProofreadAndStyle, selectedStyle, onStyleChange,
   onExportAnalysis, onExportStyledText, onClearStyledText,
   onAskAIAgent, selectedAIAgents, onShowAgentConfig,
-  onExtractEntities
+  onExtractEntities, onExportAIChat
 }) => {
   const [agentPrompt, setAgentPrompt] = useState('');
   const aiChatEndRef = useRef<HTMLDivElement>(null);
@@ -283,7 +284,13 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                     )}
                 </Section>
                  <div className="border-t border-[var(--border-color)] my-4"></div>
-                <Section title={t('aiChat', lang)} icon={<UsersIcon className="w-5 h-5" />}>
+                <Section 
+                    title={t('aiChat', lang)} 
+                    icon={<UsersIcon className="w-5 h-5" />}
+                    actions={analysisResult?.aiChatHistory && analysisResult.aiChatHistory.length > 0 && (
+                        <ExportMenu onExport={onExportAIChat} lang={lang} title={t('exportAIChat', lang)} />
+                    )}
+                >
                    <div className="px-3 py-2 space-y-2">
                         <button onClick={onShowAgentConfig} className="w-full p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors text-sm">
                            {t('configureAgent', lang)}
