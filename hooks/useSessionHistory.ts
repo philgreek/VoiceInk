@@ -26,7 +26,7 @@ export const useSessionHistory = () => {
   }, [fetchSessions]);
 
   const saveSession = useCallback(async (
-    sessionData: { name: string; sources: Source[]; settings: Settings, hasAudio: boolean, analysisResult: AnalysisResult | null },
+    sessionData: { name: string; sources: Source[]; settings: Settings, hasAudio: boolean, analysisResult: AnalysisResult | null, selectedSourceIds?: string[] },
     audioBlob: Blob | null
   ): Promise<Session> => {
     const db = await initDB();
@@ -61,24 +61,27 @@ export const useSessionHistory = () => {
     return newSession;
   }, [fetchSessions]);
 
-  const updateSessionAnalysis = useCallback(async (sessionId: string, newAnalysisResult: AnalysisResult) => {
+  // FIX: Replaced 'updateSessionAnalysis' with a more generic 'updateSession' to handle partial updates.
+  const updateSession = useCallback(async (sessionId: string, updates: Partial<Session>): Promise<Session> => {
     const db = await initDB();
     const session = await db.get('sessions', sessionId);
-    if (session) {
-      const updatedSession = produce(session, draft => {
-        draft.analysisResult = newAnalysisResult;
-      });
-      await db.put('sessions', updatedSession);
-      // Optimistically update local state to avoid re-fetching everything
-      setSessions(prevSessions => 
-        produce(prevSessions, draft => {
-          const index = draft.findIndex(s => s.id === sessionId);
-          if (index !== -1) {
-            draft[index].analysisResult = newAnalysisResult;
-          }
-        })
-      );
+    if (!session) {
+      throw new Error(`Session with id ${sessionId} not found`);
     }
+    const updatedSession = produce(session, draft => {
+        Object.assign(draft, updates);
+    });
+    await db.put('sessions', updatedSession);
+    
+    setSessions(prevSessions => 
+      produce(prevSessions, draft => {
+        const index = draft.findIndex(s => s.id === sessionId);
+        if (index !== -1) {
+          draft[index] = updatedSession;
+        }
+      })
+    );
+    return updatedSession;
   }, []);
 
   const deleteSession = useCallback(async (sessionId: string) => {
@@ -101,5 +104,5 @@ export const useSessionHistory = () => {
       }
   }, []);
 
-  return { sessions, saveSession, deleteSession, getSessionAudio, updateSessionAnalysis };
+  return { sessions, saveSession, deleteSession, getSessionAudio, updateSession };
 };

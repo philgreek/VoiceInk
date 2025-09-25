@@ -6,21 +6,24 @@ import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { PlayIcon, PauseIcon } from './icons';
 
 interface AudioPlayerProps {
-  blob: Blob;
+  // FIX: Allow blob to be null to handle cases where no audio is loaded.
+  blob: Blob | null;
   onTimeUpdate: (time: number) => void;
+  // FIX: Added isVisible prop to control player visibility from the parent component.
+  isVisible?: boolean;
 }
 
-export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(({ blob, onTimeUpdate }, ref) => {
+export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(({ blob, onTimeUpdate, isVisible }, ref) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const localAudioRef = useRef<HTMLAudioElement | null>(null);
   
-  const audioURL = React.useMemo(() => URL.createObjectURL(blob), [blob]);
+  const audioURL = React.useMemo(() => blob ? URL.createObjectURL(blob) : null, [blob]);
 
   useEffect(() => {
     const audio = localAudioRef.current;
-    if (audio) {
+    if (audio && audioURL) {
       const setAudioData = () => {
         setDuration(audio.duration);
         setCurrentTime(audio.currentTime);
@@ -44,8 +47,12 @@ export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(({ blo
   }, [onTimeUpdate, audioURL]); // Re-run when audioURL changes
 
   useEffect(() => {
-      // Clean up the object URL when the component unmounts
-      return () => URL.revokeObjectURL(audioURL);
+      // Clean up the object URL when the component unmounts or URL changes
+      return () => {
+        if (audioURL) {
+            URL.revokeObjectURL(audioURL);
+        }
+      }
   }, [audioURL]);
 
   const handlePlayPause = () => {
@@ -76,6 +83,10 @@ export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(({ blo
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  if (!blob || !isVisible) {
+      return null;
+  }
+
   return (
     <div className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-3 border-t border-[var(--border-color)] sticky bottom-[104px] sm:bottom-[112px] z-30">
       <div className="flex items-center gap-4 max-w-lg mx-auto">
@@ -88,7 +99,7 @@ export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(({ blo
                   ref.current = node;
               }
           }}
-          src={audioURL}
+          src={audioURL ?? undefined}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           onEnded={() => setIsPlaying(false)}
@@ -104,7 +115,7 @@ export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(({ blo
             <input 
                 type="range" 
                 min="0"
-                max={duration}
+                max={duration || 1}
                 value={currentTime}
                 onChange={handleSeek}
                 className="w-full h-2 bg-[var(--bg-element)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-primary)]"

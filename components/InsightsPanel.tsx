@@ -1,9 +1,9 @@
 
 
 import React, { useState, useRef, useEffect } from 'react';
-import { AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, InsightsSectionState } from '../types';
+import { AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, InsightsSectionState, Source } from '../types';
 import { t, Language } from '../utils/translations';
-import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon, EditIcon, EllipsisVerticalIcon, ClipboardIcon, DownloadIcon, NotebookIcon, RefreshCwIcon, UsersIcon, SendIcon, ScanTextIcon, MaximizeIcon, MinimizeIcon, ChevronDownIcon } from './icons';
+import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon, EditIcon, EllipsisVerticalIcon, ClipboardIcon, DownloadIcon, NotebookIcon, RefreshCwIcon, UsersIcon, SendIcon, ScanTextIcon, MaximizeIcon, MinimizeIcon, ChevronDownIcon, TrashIcon } from './icons';
 
 interface InsightsPanelProps {
   isOpen: boolean;
@@ -20,17 +20,20 @@ interface InsightsPanelProps {
   onProofreadAndStyle: () => void;
   selectedStyle: TextStyle;
   onStyleChange: (style: TextStyle) => void;
-  onExportAnalysis: (type: 'summary' | 'actionItems' | 'keyTopics', format: 'copy' | 'txt' | 'notebooklm') => void;
-  onExportStyledText: (format: 'copy' | 'txt' | 'notebooklm') => void;
+  onExportAnalysis: (type: 'summary' | 'actionItems' | 'keyTopics' | 'aiChat', format: 'copy' | 'txt' | 'notebooklm' | 'source') => void;
+  onExportStyledText: (format: 'copy' | 'txt' | 'notebooklm' | 'source') => void;
   onClearStyledText: () => void;
   onAskAIAgent: (prompt: string) => void;
   selectedAIAgents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] };
   onShowAgentConfig: () => void;
   onExtractEntities: () => void;
-  onExportAIChat: (format: 'copy' | 'txt' | 'notebooklm') => void;
+  onExportAIChat: (format: 'copy' | 'txt' | 'notebooklm' | 'source') => void;
   sectionState: InsightsSectionState;
   onToggleSection: (section: keyof InsightsSectionState) => void;
-  onExportAll: (format: 'copy' | 'txt' | 'notebooklm') => void;
+  onExportAll: (format: 'copy' | 'txt' | 'notebooklm' | 'source') => void;
+  // FIX: Added missing props to fix type errors in App.tsx
+  onConvertToSource: (name: string, content: string) => void;
+  onClearAnalysis: () => void;
 }
 
 const textStyles: TextStyle[] = [
@@ -42,7 +45,7 @@ const LoadingSpinner: React.FC = () => (
     <div className="w-5 h-5 border-2 border-[var(--text-secondary)] border-t-transparent rounded-full animate-spin"></div>
 );
 
-const ExportMenu: React.FC<{ onExport: (format: 'copy' | 'txt' | 'notebooklm') => void, lang: Language, title: string }> = ({ onExport, lang, title }) => {
+const ExportMenu: React.FC<{ onExport: (format: 'copy' | 'txt' | 'notebooklm' | 'source') => void, lang: Language, title: string }> = ({ onExport, lang, title }) => {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +83,10 @@ const ExportMenu: React.FC<{ onExport: (format: 'copy' | 'txt' | 'notebooklm') =
                     <button onClick={() => { onExport('notebooklm'); setIsOpen(false); }} className={menuButtonClass}>
                         <NotebookIcon className="w-4 h-4" />
                          <span>{t('exportForNotebookLM', lang)}</span>
+                    </button>
+                    <button onClick={() => { onExport('source'); setIsOpen(false); }} className={menuButtonClass}>
+                        <FileTextIcon className="w-4 h-4" />
+                         <span>{t('source', lang)}</span>
                     </button>
                 </div>
             )}
@@ -123,6 +130,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
   onAskAIAgent, selectedAIAgents, onShowAgentConfig,
   onExtractEntities, onExportAIChat,
   sectionState, onToggleSection, onExportAll,
+  onConvertToSource, onClearAnalysis
 }) => {
   const [agentPrompt, setAgentPrompt] = useState('');
   const aiChatEndRef = useRef<HTMLDivElement>(null);
@@ -156,8 +164,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
   return (
     <aside className={asideClasses}>
       <header 
-        className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0 cursor-pointer"
-        onClick={onToggleExpand}
+        className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0"
       >
         <h2 className="text-xl font-bold flex items-center gap-2">
             <LightbulbIcon className="w-6 h-6 text-[var(--accent-primary)]" />
@@ -165,9 +172,14 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
         </h2>
         <div className="flex items-center gap-2">
             {hasAnyAnalysis && (
+                <>
                 <div onClick={e => e.stopPropagation()}>
                     <ExportMenu onExport={onExportAll} lang={lang} title={t('exportAllInsights', lang)} />
                 </div>
+                <button onClick={(e) => { e.stopPropagation(); onClearAnalysis(); }} className="p-1 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-element-hover)] hover:text-red-500" title={t('clearChat', lang)}>
+                    <TrashIcon className="w-5 h-5" />
+                </button>
+                </>
             )}
             <button onClick={(e) => { e.stopPropagation(); onToggleExpand(); }} className="p-1 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-element-hover)] hover:text-[var(--text-primary)]" title={isExpanded ? t('collapse', lang) : t('expand', lang)}>
               {isExpanded ? <MinimizeIcon className="w-5 h-5" /> : <MaximizeIcon className="w-5 h-5" />}
@@ -317,7 +329,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                     isExpanded={sectionState.aiChat}
                     onToggle={() => onToggleSection('aiChat')}
                     actions={analysisResult?.aiChatHistory && analysisResult.aiChatHistory.length > 0 && (
-                        <ExportMenu onExport={onExportAIChat} lang={lang} title={t('exportAIChat', lang)} />
+                        <ExportMenu onExport={(format) => onExportAIChat(format)} lang={lang} title={t('exportAIChat', lang)} />
                     )}
                 >
                    <div className="px-3 py-2 space-y-2">

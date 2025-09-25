@@ -1,4 +1,3 @@
-
 export interface Message {
   id: string;
   text: string;
@@ -13,6 +12,7 @@ export interface Source {
     name: string;
     type: SourceType;
     content: Message[] | string; // Message[] for transcription, string for others
+    isSelected?: boolean;
 }
 
 export interface SpeakerProfile {
@@ -131,6 +131,7 @@ export interface Session {
   savedAt: string;
   hasAudio: boolean;
   analysisResult: AnalysisResult | null;
+  selectedSourceIds?: string[];
 }
 
 export interface LoadedSession extends Session {

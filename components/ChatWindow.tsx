@@ -17,6 +17,8 @@ interface ChatWindowProps {
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
   onDeleteMessage: (id: string) => void;
+  // FIX: Added 'onStartEdit' prop to handle the beginning of a message edit action.
+  onStartEdit: (message: Message) => void;
   lang: Language;
   playbackTime: number;
   onSeekAudio: (time: number) => void;
@@ -29,11 +31,13 @@ const MessageList: React.FC<{
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
   onDeleteMessage: (id: string) => void;
+  // FIX: Added 'onStartEdit' prop to pass down to each ChatMessage.
+  onStartEdit: (message: Message) => void;
   lang: Language;
   playbackTime: number;
   onSeekAudio: (time: number) => void;
   entities?: Entity[];
-}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, lang, playbackTime, onSeekAudio, entities }) => {
+}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, onStartEdit, lang, playbackTime, onSeekAudio, entities }) => {
   return (
     <>
       {messages.map((msg, index) => {
@@ -48,6 +52,7 @@ const MessageList: React.FC<{
               onUpdateMessage={onUpdateMessage}
               onChangeSpeaker={onChangeSpeaker}
               onDeleteMessage={onDeleteMessage}
+              onStartEdit={onStartEdit}
               isFirstMessage={index === 0}
               lang={lang}
               isActive={isActive}
@@ -93,6 +98,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
     onUpdateMessage,
     onChangeSpeaker,
     onDeleteMessage,
+    onStartEdit,
     lang,
     playbackTime,
     onSeekAudio,
@@ -140,6 +146,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
             onUpdateMessage={onUpdateMessage}
             onChangeSpeaker={onChangeSpeaker}
             onDeleteMessage={onDeleteMessage}
+            onStartEdit={onStartEdit}
             lang={lang}
             playbackTime={playbackTime}
             onSeekAudio={onSeekAudio}

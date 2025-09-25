@@ -10,6 +10,8 @@ interface ChatMessageProps {
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
   onDeleteMessage: (id: string) => void;
+  // FIX: Added 'onStartEdit' prop to notify parent components when editing begins.
+  onStartEdit: (message: Message) => void;
   isFirstMessage: boolean;
   lang: Language;
   isActive: boolean;
@@ -71,7 +73,7 @@ const renderTextWithEntities = (text: string, entities: Entity[] | undefined, la
 
 
 const ChatMessageComponent: React.FC<ChatMessageProps> = ({ 
-    message, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, isFirstMessage, lang, isActive, onSeekAudio, entities 
+    message, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, onStartEdit, isFirstMessage, lang, isActive, onSeekAudio, entities 
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
@@ -92,6 +94,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     if (bubbleRef.current) setEditWidth(bubbleRef.current.offsetWidth);
     setEditText(message.text);
     setIsEditing(true);
+    onStartEdit(message);
   };
 
   const handleSave = () => {

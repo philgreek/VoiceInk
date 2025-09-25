@@ -16,9 +16,11 @@ interface HeaderProps {
   onHelpClick: () => void;
   onToggleSources: () => void;
   lang: Language;
+  // FIX: Added 'isEditing' prop to allow the header to respond to the app's editing state.
+  isEditing: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, onHistoryClick, onUndo, onRedo, canUndo, canRedo, onHelpClick, onToggleSources, lang }) => {
+export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, onHistoryClick, onUndo, onRedo, canUndo, canRedo, onHelpClick, onToggleSources, lang, isEditing }) => {
   const buttonClasses = "p-2 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-transparent hover:bg-[var(--bg-surface)] rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent";
 
   return (
@@ -39,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, o
       <div className="flex items-center gap-1 sm:gap-2" data-tour-id="header-controls">
          <button
           onClick={onUndo}
-          disabled={!canUndo}
+          disabled={!canUndo || isEditing}
           className={buttonClasses}
           aria-label={t('undo', lang)}
         >
@@ -47,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, o
         </button>
          <button
           onClick={onRedo}
-          disabled={!canRedo}
+          disabled={!canRedo || isEditing}
           className={buttonClasses}
           aria-label={t('redo', lang)}
         >
@@ -56,6 +58,7 @@ export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, o
         <div className="w-px h-7 bg-[var(--border-color)] mx-2"></div>
         <button
           onClick={onExport}
+          disabled={isEditing}
           className={buttonClasses}
           aria-label={t('exportChat', lang)}
         >
@@ -63,6 +66,7 @@ export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, o
         </button>
         <button
           onClick={onSettings}
+          disabled={isEditing}
           className={`${buttonClasses} rounded-full`}
           aria-label={t('settings', lang)}
         >
@@ -70,6 +74,7 @@ export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, o
         </button>
         <button
           onClick={onHelpClick}
+          disabled={isEditing}
           className={buttonClasses}
           aria-label={t('help', lang)}
         >
@@ -77,6 +82,7 @@ export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, o
         </button>
         <button
           onClick={onClear}
+          disabled={isEditing}
           className={`${buttonClasses} rounded-full hover:text-red-500`}
           aria-label={t('clearChat', lang)}
         >

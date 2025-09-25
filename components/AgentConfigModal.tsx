@@ -95,6 +95,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({ initialSelec
 
     const handleSave = () => {
         onSave({ expertise: selectedExpertise, domains: selectedDomains.length > 0 ? selectedDomains : ['general'] });
+        onClose();
     };
 
     const toggleExpertise = (id: AIAgentExpertise) => {
