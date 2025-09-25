@@ -17,7 +17,10 @@
     "html2canvas": "1.4.1",
     "idb": "7",
     "intro.js": "7.2.0",
-    "@google/genai": "latest"
+    "@google/genai": "latest",
+    "fs": "^0.0.1-security",
+    "react-dropzone": "^14.3.8",
+    "formidable": "^3.5.4"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

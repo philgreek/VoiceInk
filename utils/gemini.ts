@@ -1,8 +1,7 @@
 
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language, t } from "./translations";
-import { ActionItem, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity } from "../types";
+import { ActionItem, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, Source, Message } from "../types";
 
 const getAIClient = (apiKey: string) => new GoogleGenAI({ apiKey });
 
@@ -16,11 +15,12 @@ const safelyGetText = (response: GenerateContentResponse): string => {
 };
 
 export const getSummary = async (apiKey: string, text: string, lang: Language): Promise<string> => {
+    // This function can now take the full context from all sources
     try {
         const ai = getAIClient(apiKey);
-        const prompt = `Generate a concise summary of the following conversation transcript. The language of the transcript is ${lang}. The summary should capture the main points and outcomes. Respond in ${lang}.
+        const prompt = `Generate a concise summary of the following content. The content may include multiple sources like transcripts, documents, and web pages. The language is ${lang}. The summary should capture the main points and outcomes from all provided sources. Respond in ${lang}.
 
-        Transcript:
+        Content:
         ---
         ${text}
         ---
@@ -38,11 +38,12 @@ export const getSummary = async (apiKey: string, text: string, lang: Language): 
 };
 
 export const getActionItems = async (apiKey: string, text: string, lang: Language): Promise<ActionItem[]> => {
+    // This function can now take the full context from all sources
     try {
         const ai = getAIClient(apiKey);
-        const prompt = `Analyze the following conversation transcript and extract all specific action items, tasks, or follow-ups mentioned. Respond in the same language as the transcript (${lang}). Your response must be a valid JSON array of objects.
+        const prompt = `Analyze the following content (which may include multiple sources) and extract all specific action items, tasks, or follow-ups mentioned. Respond in ${lang}. Your response must be a valid JSON array of objects.
 
-        Transcript:
+        Content:
         ---
         ${text}
         ---
@@ -77,11 +78,12 @@ export const getActionItems = async (apiKey: string, text: string, lang: Languag
 };
 
 export const getKeyTopics = async (apiKey: string, text: string, lang: Language): Promise<string[]> => {
+    // This function can now take the full context from all sources
     try {
         const ai = getAIClient(apiKey);
-        const prompt = `Analyze the following conversation transcript and identify the main topics or themes discussed. Return a list of 3-5 key topics. Respond in the same language as the transcript (${lang}). Your response must be a valid JSON array of strings.
+        const prompt = `Analyze the following content (which may include multiple sources) and identify the main topics or themes discussed. Return a list of 3-5 key topics. Respond in ${lang}. Your response must be a valid JSON array of strings.
 
-        Transcript:
+        Content:
         ---
         ${text}
         ---
@@ -96,7 +98,7 @@ export const getKeyTopics = async (apiKey: string, text: string, lang: Language)
                     type: Type.ARRAY,
                     items: {
                         type: Type.STRING,
-                        description: "A key topic or theme from the conversation."
+                        description: "A key topic or theme from the content."
                     },
                  },
             }
@@ -110,25 +112,16 @@ export const getKeyTopics = async (apiKey: string, text: string, lang: Language)
 };
 
 export const getProofreadAndStyledText = async (apiKey: string, text: string, style: TextStyle, lang: Language): Promise<string> => {
+    // This function primarily works on the main transcription, not all sources.
     try {
         const ai = getAIClient(apiKey);
-        const styleName = t(`style${style.charAt(0).toUpperCase() + style.slice(1)}` as any, 'en'); // Use english key to avoid header error
+        const styleName = t(`style${style.charAt(0).toUpperCase() + style.slice(1)}` as any, 'en');
         
         const prompt = `You are an expert editor. Your task is to first thoroughly proofread the following text for any grammatical errors, spelling mistakes, and punctuation errors. 
         Then, rewrite and reformat the entire text to fit the '${styleName}' profile. 
         The final output should be a clean, polished, and well-structured version of the text in the requested style.
         The original language is ${lang}, and your response MUST be in ${lang}.
         
-        Style Guide for '${styleName}':
-        - **Meeting/Dialogue:** Clean up the dialogue, correct mistakes, but keep the conversational flow. Ensure speaker labels are clear.
-        - **Lecture:** Transform into a well-structured educational text. Use clear headings, paragraphs, and bullet points for key information. Maintain a formal, instructive tone.
-        - **Interview:** Format as a classic Q&A. Clearly label questions (Q:) and answers (A:). Ensure the flow is logical.
-        - **Consultation/Psychological/Legal:** Adopt a professional and formal tone. Structure the text logically, perhaps with sections for problem, analysis, and recommendation. Ensure clarity and precision.
-        - **Podcast/Blog:** Make the text more engaging, narrative, and conversational. Break up long paragraphs. Use headings and possibly rhetorical questions to draw the reader in.
-        - **Business:** Use a professional, concise, and direct tone. Focus on clarity and actionability. Structure with bullet points and clear takeaways.
-        - **Literary:** Rewrite the text with a more descriptive, evocative, and narrative style. Pay attention to prose and flow.
-        - **Scientific:** Use a formal, objective, and precise tone. Structure the text logically with clear sections if applicable. Use appropriate terminology.
-
         Transcript to process:
         ---
         ${text}
@@ -147,6 +140,7 @@ export const getProofreadAndStyledText = async (apiKey: string, text: string, st
 };
 
 const agentExpertiseInstructions: Record<AIAgentExpertise, string> = {
+    // Definitions remain the same
     interviewer: "As an Interviewer, your goal is to assess the conversation. Identify the key questions asked and the quality of the answers. Note the speaker's communication skills, confidence, and knowledge. Point out strengths and weaknesses.",
     reporter: "As a Reporter, your goal is to find the story. Extract the most newsworthy facts, quotes, and events from the text. Structure your analysis like a news brief, focusing on the who, what, when, where, and why.",
     recruiter: "As a Recruiter, analyze the transcript from a hiring perspective. Evaluate the candidate's skills, experience, and cultural fit based on their responses. Identify red flags or positive signals.",
@@ -157,14 +151,12 @@ const agentExpertiseInstructions: Record<AIAgentExpertise, string> = {
     tech_support: "As a Tech Support Specialist, your goal is to solve the problem. Identify the technical issue described, the steps taken to troubleshoot it, and the proposed solution. Structure the analysis as a support ticket summary.",
     business_analyst: "As a Business Analyst, focus on processes, requirements, and stakeholders. Identify business needs, potential improvements, and key performance indicators (KPIs) mentioned in the conversation.",
     financial_advisor: "As a Financial Advisor, scrutinize the text for any financial data, budget discussions, investment opportunities, costs, revenues, and economic risks. Provide a concise analysis of the financial situation.",
-    financial: "As a Financial Analyst, scrutinize the text for any financial data, budget discussions, investment opportunities, costs, revenues, and economic risks. Provide a concise analysis of the financial situation as described in the conversation.",
     project_manager: "As a Project Manager, identify project goals, timelines, resources, risks, and stakeholder responsibilities. Extract a list of action items and key decisions.",
     course_developer: "As a Course Developer, analyze the transcript for educational content. Identify key learning objectives, concepts, and examples. Suggest how this content could be structured into a lesson or course module.",
     academic_researcher: "As an Academic Researcher, analyze the text for a research hypothesis, evidence, and conclusions. Identify the core arguments, methodologies discussed, and contributions to a field of knowledge.",
     therapist: "As a Therapist/Counselor, analyze the conversation's emotional dynamics, communication patterns, and underlying psychological themes. Offer insights into the speakers' states of mind, potential conflicts, and relational dynamics. Use professional psychological terminology appropriately.",
     psychologist: "As a Psychologist and Supervisor. Analyze the conversation's emotional dynamics, communication patterns, and underlying psychological themes. Offer insights into the speakers' states of mind, potential conflicts, and relational dynamics. Use professional psychological terminology appropriately.",
     legal_assistant: "As a Legal Assistant/Paralegal, analyze the text from a legal perspective. Identify potential risks, liabilities, contractual obligations, and legal implications. Provide precise, cautious, and professional advice. Do not provide definitive legal counsel, but highlight areas that may require legal attention.",
-    legal: "You are a Legal Advisor. Analyze the text from a legal perspective. Identify potential risks, liabilities, contractual obligations, and legal implications. Provide precise, cautious, and professional advice. Do not provide definitive legal counsel, but highlight areas that may require legal attention.",
     detective: "As a Detective/Analyst, look for inconsistencies, hidden meanings, and evidence. Analyze the statements for credibility, motive, and opportunity. Piece together a timeline of events based on the conversation.",
     chef_nutritionist: "As a Chef/Nutritionist, analyze the conversation for discussions about food, recipes, dietary habits, and health goals. Extract recipes, meal plans, or provide nutritional advice based on the text.",
     customer_manager: "As a Customer Relationship Manager, analyze the conversation to gauge customer satisfaction. Identify complaints, positive feedback, and opportunities to improve the customer experience.",
@@ -174,12 +166,12 @@ const agentExpertiseInstructions: Record<AIAgentExpertise, string> = {
     speechwriter: "As a Speechwriter. Your task is to transform the key ideas from the conversation into a compelling speech, presentation, or monologue. Focus on creating a strong narrative, clear structure, and persuasive language. Identify the core message and build a powerful argument around it."
 };
 
-export const getAgentResponse = async (apiKey: string, text: string, agents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] }, lang: Language, chatHistory: AIChatMessage[]): Promise<string> => {
+export const getAgentResponse = async (apiKey: string, context: string, agents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] }, lang: Language, chatHistory: AIChatMessage[]): Promise<string> => {
     try {
         const ai = getAIClient(apiKey);
         
         const expertiseInstructions = agents.expertise
-            .map(exp => agentExpertiseInstructions[exp])
+            .map(exp => agentExpertiseInstructions[exp] || '')
             .join("\n\n");
         
         const expertiseNames = agents.expertise.map(e => t(`agent${e.charAt(0).toUpperCase() + e.slice(1)}` as any, lang)).join(', ');
@@ -188,11 +180,11 @@ export const getAgentResponse = async (apiKey: string, text: string, agents: { e
         let fullSystemInstruction = `You are a multi-disciplinary AI expert. Your current active expert roles are: ${expertiseNames}.
         ${expertiseInstructions}
         You must apply this expertise strictly within the following domains: ${domainNames}.
-        You have been provided with a conversation transcript as the primary context. Answer the user's questions based ONLY on this transcript, through the combined lens of your active roles and domains. Respond in ${lang}.`;
+        You have been provided with a set of source documents as the primary context. Answer the user's questions based ONLY on the provided sources, through the combined lens of your active roles and domains. If the answer is not in the sources, say that you cannot find the information in the provided context. Respond in ${lang}.`;
 
         const contents: AIChatMessage[] = [
-            { role: 'user', parts: [{ text: `Here is the conversation transcript for context:\n\n---\n${text}\n---` }] },
-            { role: 'model', parts: [{ text: `Understood. I have reviewed the transcript. I am ready to answer your questions based on my active roles as a ${expertiseNames} specializing in ${domainNames}.` }] },
+            { role: 'user', parts: [{ text: `Here are the source documents for context:\n\n---\n${context}\n---` }] },
+            { role: 'model', parts: [{ text: `Understood. I have reviewed all the provided sources. I am ready to answer your questions based on my active roles as a ${expertiseNames} specializing in ${domainNames}.` }] },
             ...chatHistory
         ];
 
@@ -211,6 +203,7 @@ export const getAgentResponse = async (apiKey: string, text: string, agents: { e
 };
 
 export const extractEntities = async (apiKey: string, text: string, lang: Language): Promise<Entity[]> => {
+    // This function primarily works on the main transcription, not all sources.
     try {
         const ai = getAIClient(apiKey);
         const prompt = `Analyze the following conversation transcript in ${lang} and extract key entities. Identify names of people, organizations, specific dates (like "tomorrow" or "next week" are also valid), locations, and monetary values.

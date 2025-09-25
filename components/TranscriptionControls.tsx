@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { MicIcon, SparklesIcon, PlayIcon, PauseIcon, StopIcon } from './icons';
 import { t, Language } from '../utils/translations';

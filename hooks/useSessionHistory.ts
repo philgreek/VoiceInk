@@ -1,6 +1,6 @@
 
 import { useState, useCallback, useEffect } from 'react';
-import { Session, Message, Settings, AnalysisResult } from '../types';
+import { Session, Source, Settings, AnalysisResult } from '../types';
 import { initDB } from '../utils/db';
 import { produce } from 'immer';
 
@@ -26,7 +26,7 @@ export const useSessionHistory = () => {
   }, [fetchSessions]);
 
   const saveSession = useCallback(async (
-    sessionData: { name: string; messages: Message[]; settings: Settings, hasAudio: boolean, analysisResult: AnalysisResult | null },
+    sessionData: { name: string; sources: Source[]; settings: Settings, hasAudio: boolean, analysisResult: AnalysisResult | null },
     audioBlob: Blob | null
   ): Promise<Session> => {
     const db = await initDB();
@@ -52,7 +52,9 @@ export const useSessionHistory = () => {
         const audioStore = tx.objectStore('audio');
         await Promise.all(sessionsToDelete.map(s => {
             sessionStore.delete(s.id);
-            audioStore.delete(s.id);
+            if (s.hasAudio) {
+                audioStore.delete(s.id);
+            }
         }));
         await tx.done;
     }

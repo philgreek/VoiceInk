@@ -1,10 +1,18 @@
 
-
 export interface Message {
   id: string;
   text: string;
   timestamp: number; // Seconds from the start of the recording
   sender: 'user' | 'interlocutor' | 'assistant';
+}
+
+export type SourceType = 'transcription' | 'audio' | 'file' | 'url';
+
+export interface Source {
+    id: string;
+    name: string;
+    type: SourceType;
+    content: Message[] | string; // Message[] for transcription, string for others
 }
 
 export interface SpeakerProfile {
@@ -92,9 +100,7 @@ export type AIAgentExpertise =
   | 'coach'
   | 'editor'
   | 'tutor'
-  | 'speechwriter'
-  | 'financial' // Legacy, maps to financial_advisor
-  | 'legal'; // Legacy, maps to legal_assistant
+  | 'speechwriter';
 
 export type AIAgentDomain =
   | 'general'
@@ -120,7 +126,7 @@ export type AIAgentDomain =
 export interface Session {
   id:string;
   name: string;
-  messages: Message[];
+  sources: Source[];
   settings: Settings;
   savedAt: string;
   hasAudio: boolean;
@@ -134,7 +140,6 @@ export interface LoadedSession extends Session {
 export type InsightsSectionState = {
   [key in 'summary' | 'actionItems' | 'keyTopics' | 'textAnalysis' | 'textEditor' | 'aiChat']: boolean;
 };
-
 
 // Web Speech API types for TypeScript
 export interface SpeechRecognitionAlternative {

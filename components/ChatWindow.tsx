@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useEffect, forwardRef } from 'react';
 import type { Message, Settings, Entity } from '../types';
 import { MicIcon, FileAudioIcon } from './icons';
@@ -112,7 +113,8 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
                 <div className="flex items-center gap-4">
                     <FileAudioIcon className="w-12 h-12 animate-pulse text-[var(--accent-primary)]" />
                      <div>
-                        <h3 className="text-xl font-semibold text-[var(--text-primary)]">{t('transcribingFile', lang)}</h3>
+                        {/* FIX: Use correct translation key 'processingSource' instead of 'transcribingFile'. */}
+                        <h3 className="text-xl font-semibold text-[var(--text-primary)]">{t('processingSource', lang)}</h3>
                         <p>{t('thisMayTakeAMoment', lang)}</p>
                     </div>
                 </div>
