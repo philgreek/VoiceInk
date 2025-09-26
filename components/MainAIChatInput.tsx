@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { SendIcon } from './icons';
 import { t, Language } from '../utils/translations';
@@ -20,7 +21,7 @@ export const MainAIChatInput: React.FC<MainAIChatInputProps> = ({ onAskAIAgent, 
   };
 
   return (
-    <div className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-4 border-t border-[var(--border-color)] sticky bottom-[104px] sm:bottom-[112px] z-20">
+    <div className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-4 border-t border-[var(--border-color)] z-20">
       <form onSubmit={handleSubmit} className="flex items-center gap-2 max-w-lg mx-auto">
         <input
           type="text"

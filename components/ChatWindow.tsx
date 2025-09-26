@@ -17,27 +17,16 @@ interface ChatWindowProps {
   onUpdateMessage: (id: string, newText: string) => void;
   onChangeSpeaker: (id: string) => void;
   onDeleteMessage: (id: string) => void;
-  // FIX: Added 'onStartEdit' prop to handle the beginning of a message edit action.
   onStartEdit: (message: Message) => void;
+  onConvertToSource: (name: string, content: string) => void;
+  onMessageClick: (message: Message) => void;
   lang: Language;
   playbackTime: number;
   onSeekAudio: (time: number) => void;
   entities?: Entity[];
 }
 
-const MessageList: React.FC<{
-  messages: Message[];
-  settings: Settings;
-  onUpdateMessage: (id: string, newText: string) => void;
-  onChangeSpeaker: (id: string) => void;
-  onDeleteMessage: (id: string) => void;
-  // FIX: Added 'onStartEdit' prop to pass down to each ChatMessage.
-  onStartEdit: (message: Message) => void;
-  lang: Language;
-  playbackTime: number;
-  onSeekAudio: (time: number) => void;
-  entities?: Entity[];
-}> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, onStartEdit, lang, playbackTime, onSeekAudio, entities }) => {
+const MessageList: React.FC<Omit<ChatWindowProps, 'interimTranscript' | 'currentSpeaker' | 'isRecording' | 'isPaused' | 'isProcessingFile'>> = React.memo(({ messages, settings, onUpdateMessage, onChangeSpeaker, onDeleteMessage, onStartEdit, onConvertToSource, onMessageClick, lang, playbackTime, onSeekAudio, entities }) => {
   return (
     <>
       {messages.map((msg, index) => {
@@ -53,6 +42,8 @@ const MessageList: React.FC<{
               onChangeSpeaker={onChangeSpeaker}
               onDeleteMessage={onDeleteMessage}
               onStartEdit={onStartEdit}
+              onConvertToSource={onConvertToSource}
+              onMessageClick={onMessageClick}
               isFirstMessage={index === 0}
               lang={lang}
               isActive={isActive}
@@ -99,6 +90,8 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
     onChangeSpeaker,
     onDeleteMessage,
     onStartEdit,
+    onConvertToSource,
+    onMessageClick,
     lang,
     playbackTime,
     onSeekAudio,
@@ -119,7 +112,6 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
                 <div className="flex items-center gap-4">
                     <FileAudioIcon className="w-12 h-12 animate-pulse text-[var(--accent-primary)]" />
                      <div>
-                        {/* FIX: Use correct translation key 'processingSource' instead of 'transcribingFile'. */}
                         <h3 className="text-xl font-semibold text-[var(--text-primary)]">{t('processingSource', lang)}</h3>
                         <p>{t('thisMayTakeAMoment', lang)}</p>
                     </div>
@@ -147,6 +139,8 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
             onChangeSpeaker={onChangeSpeaker}
             onDeleteMessage={onDeleteMessage}
             onStartEdit={onStartEdit}
+            onConvertToSource={onConvertToSource}
+            onMessageClick={onMessageClick}
             lang={lang}
             playbackTime={playbackTime}
             onSeekAudio={onSeekAudio}

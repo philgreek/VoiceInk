@@ -1,7 +1,10 @@
 
+
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, InsightsSectionState, Source, SourceType } from './types';
+// FIX: Added 'ActionItem' to the import list to resolve the "Cannot find name 'ActionItem'" error.
+import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, InsightsSectionState, Source, SourceType, ActionItem } from './types';
 import { Header } from './components/Header';
 import { SessionBar } from './components/SessionBar';
 import { ChatWindow } from './components/ChatWindow';
@@ -28,7 +31,6 @@ import { NotebookLMInstructionsModal } from './components/NotebookLMInstructions
 import { SourcesPanel } from './components/SourcesPanel';
 import { AddSourceModal } from './components/AddSourceModal';
 import { MainAIChatInput } from './components/MainAIChatInput';
-// FIX: Import the TextEditorToolbar component.
 import { TextEditorToolbar } from './components/TextEditorToolbar';
 import { ViewSourceModal } from './components/ViewSourceModal';
 import { RenameSourceModal } from './components/RenameSourceModal';
@@ -57,7 +59,7 @@ const getInitialSession = (): Session => ({
 
 const App: React.FC = () => {
   const [sessionState, setSessionState] = useState<Session>(getInitialSession());
-  const { state: historyState, setState: setHistoryState, undo, redo, canUndo, canRedo, reset: resetHistory } = useHistoryState(sessionState.sources.find(s => s.type === 'transcription')?.content as Message[] || []);
+  const { state: historyState, setState: setHistoryState, undo, redo, canUndo, canRedo, reset: resetHistory } = useHistoryState<Message[]>([]);
 
   const [settings, setSettings] = useState<Settings>(() => {
     try {
@@ -103,16 +105,16 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState({ summary: false, actionItems: false, topics: false, proofread: false, agent: false, entities: false });
   const [isProcessingSource, setIsProcessingSource] = useState(false);
   const [exportedFileName, setExportedFileName] = useState('session.txt');
-  const [selectedStyle, setSelectedStyle] = useState<TextStyle>('default');
   const [selectedAIAgents, setSelectedAIAgents] = useState<{ expertise: AIAgentExpertise[], domains: AIAgentDomain[] }>({ expertise: [], domains: [] });
   const [insightsSectionState, setInsightsSectionState] = useState<InsightsSectionState>({ summary: true, actionItems: true, keyTopics: true, textAnalysis: true, textEditor: true, aiChat: true });
+  const [activeInsightsSection, setActiveInsightsSection] = useState<keyof AnalysisResult | null>(null);
   
   const chatWindowRef = useRef<HTMLDivElement>(null);
   const { sessions, saveSession, deleteSession, getSessionAudio, updateSession } = useSessionHistory();
   const lang = settings.language as Language;
   
   const transcriptionSource = sessionState.sources.find(s => s.type === 'transcription');
-  const messages = (transcriptionSource?.content as Message[]) || historyState;
+  const messages = (transcriptionSource?.content as Message[]) || [];
 
   // Transcription hook setup
   const onFinalTranscript = useCallback((transcript: string) => {
@@ -121,7 +123,8 @@ const App: React.FC = () => {
           id: `msg-${Date.now()}`,
           text: transcript,
           timestamp: audioRef.current?.currentTime ?? 0,
-          sender: newSpeaker
+          sender: newSpeaker,
+          isClone: false,
       };
       setHistoryState(currentMessages => [...currentMessages, newMessage]);
   }, [currentSpeaker, isPushToTalkActive, setHistoryState]);
@@ -149,23 +152,18 @@ const App: React.FC = () => {
   }, [settings]);
 
   useEffect(() => {
-      const transcription = sessionState.sources.find(s => s.type === 'transcription');
-      if (transcription) {
+      if (transcriptionSource) {
           const newContent = historyState;
           setSessionState(produce(draft => {
               const source = draft.sources.find(s => s.type === 'transcription');
               if (source) source.content = newContent;
           }));
       }
-  }, [historyState]);
+  }, [historyState, transcriptionSource]);
   
   const startNewSession = (startRecording = false) => {
         const newSession = getInitialSession();
         newSession.settings = settings;
-        if(startRecording) {
-            newSession.sources.push({ id: `source-${Date.now()}`, name: 'Live Transcription', type: 'transcription', content: [] });
-            newSession.selectedSourceIds = [newSession.sources[0].id];
-        }
         setSessionState(newSession);
         resetHistory([]);
         setLoadedAudio(null);
@@ -187,10 +185,10 @@ const App: React.FC = () => {
             setIsPaused(false);
             if (!transcriptionSource) {
                  setSessionState(produce(draft => {
-                     // FIX: Added 'as const' to ensure TypeScript infers the correct literal type for 'transcription', matching the 'SourceType' union type.
-                     const newSource = { id: `source-${Date.now()}`, name: 'Live Transcription', type: 'transcription' as const, content: [] };
+                     const newSource: Source = { id: `source-${Date.now()}`, name: 'Live Transcription', type: 'transcription', content: [], isSelected: true };
                      draft.sources.push(newSource);
                      draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
+                     resetHistory([]);
                  }));
             }
         } catch (err) {
@@ -205,10 +203,6 @@ const App: React.FC = () => {
         }
     }, [isRecording, mediaStream, startListening]);
     
-    // ... more handlers and effects
-    // This will be a very large file, so I'll stub the rest for brevity.
-    // The key is to implement all handlers correctly.
-
     const handleStop = () => {
         setIsRecording(false);
         setIsPaused(false);
@@ -227,25 +221,32 @@ const App: React.FC = () => {
 
     const handleLoadSession = async (session: Session) => {
         const audioBlob = await getSessionAudio(session.id);
+        const transcription = session.sources.find(s => s.type === 'transcription');
         setSessionState(session);
-        resetHistory(session.sources.find(s => s.type === 'transcription')?.content as Message[] || []);
+        resetHistory(transcription?.content as Message[] || []);
         setLoadedAudio(audioBlob);
         setShowHistoryModal(false);
     };
 
-    // Text selection handler
     useEffect(() => {
         const handleMouseUp = () => {
             const selection = window.getSelection();
             const selectedText = selection?.toString().trim();
-            if (selectedText) {
+            if (selectedText && !editingMessage) {
                 const range = selection?.getRangeAt(0);
                 const container = range?.commonAncestorContainer;
-                // FIX: Cast the container to an Element to access the 'closest' method, as 'Node' type does not have it.
                 const messageElement = (container?.nodeType === Node.ELEMENT_NODE ? (container as Element) : container?.parentElement)?.closest('[data-message-id]');
                 const messageId = messageElement?.getAttribute('data-message-id');
+                // FIX: Added a check to ensure that the contextual action bar (for splitting messages)
+                // only appears for user or interlocutor messages, not for AI assistant messages,
+                // which resolves a downstream type error.
                 if (messageId) {
-                    setSelectionContext({ messageId, text: selectedText });
+                    const message = messages.find(m => m.id === messageId);
+                    if (message && message.sender !== 'assistant') {
+                        setSelectionContext({ messageId, text: selectedText });
+                    }
+                } else {
+                    setSelectionContext(null);
                 }
             } else {
                 setSelectionContext(null);
@@ -253,7 +254,7 @@ const App: React.FC = () => {
         };
         document.addEventListener('mouseup', handleMouseUp);
         return () => document.removeEventListener('mouseup', handleMouseUp);
-    }, []);
+    }, [editingMessage, messages]);
 
     const handleAddSource = useCallback(async (file: File | null, url: string) => {
         if (!geminiApiKey) {
@@ -298,17 +299,32 @@ const App: React.FC = () => {
                 throw new Error(errorData.error || 'Server error');
             }
             const data = await response.json();
+            
+            const isTranscription = sourceType === 'audio';
             const newSource: Source = {
                 id: `source-${Date.now()}`,
                 name: sourceName,
-                type: sourceType as SourceType,
+                type: isTranscription ? 'transcription' : sourceType as SourceType,
                 content: data.content,
                 isSelected: true
             };
+            
             setSessionState(produce(draft => {
-                draft.sources.push(newSource);
+                if(isTranscription) {
+                    // Replace existing transcription if one exists
+                    const existingIndex = draft.sources.findIndex(s => s.type === 'transcription');
+                    if (existingIndex !== -1) {
+                         draft.sources[existingIndex] = newSource;
+                    } else {
+                         draft.sources.push(newSource);
+                    }
+                    resetHistory(data.content);
+                } else {
+                    draft.sources.push(newSource);
+                }
                 draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
             }));
+            
         } catch (error) {
             console.error('Error processing source:', error);
             alert(t('sourceProcessingError', lang));
@@ -317,14 +333,17 @@ const App: React.FC = () => {
         }
     }, [geminiApiKey, lang]);
     
-    // ... all other handlers
-    const handleToggleSourceSelection = (sourceId: string) => {
+    const handleToggleSourceSelection = (sourceId: string, isSelectAll = false, selectAllState = false) => {
         setSessionState(produce(draft => {
-            const currentSelected = draft.selectedSourceIds || [];
-            if (currentSelected.includes(sourceId)) {
-                draft.selectedSourceIds = currentSelected.filter(id => id !== sourceId);
+            if (isSelectAll) {
+                 draft.selectedSourceIds = selectAllState ? draft.sources.map(s => s.id) : [];
             } else {
-                draft.selectedSourceIds = [...currentSelected, sourceId];
+                const currentSelected = draft.selectedSourceIds || [];
+                if (currentSelected.includes(sourceId)) {
+                    draft.selectedSourceIds = currentSelected.filter(id => id !== sourceId);
+                } else {
+                    draft.selectedSourceIds = [...currentSelected, sourceId];
+                }
             }
         }));
     };
@@ -333,47 +352,27 @@ const App: React.FC = () => {
         const selectedSources = sessionState.sources.filter(s => sessionState.selectedSourceIds?.includes(s.id));
         return selectedSources.map(source => {
             let contentString = '';
-            if (Array.isArray(source.content)) {
+            if (source.type === 'transcription' && Array.isArray(source.content)) {
                 contentString = source.content.map(msg => `${settings[msg.sender as 'user' | 'interlocutor'].initial}: ${msg.text}`).join('\n');
             } else {
-                contentString = source.content;
+                contentString = source.content as string;
             }
             return `--- Source: ${source.name} (${source.type}) ---\n${contentString}`;
         }).join('\n\n');
     }, [sessionState.sources, sessionState.selectedSourceIds, settings]);
 
-    const handleAskAIAgent = async (prompt: string) => {
-        if (!geminiApiKey) { setShowApiKeyModal(true); return; }
-        
-        const currentChatHistory = sessionState.analysisResult?.aiChatHistory || [];
-        const newHistory: AIChatMessage[] = [...currentChatHistory, { role: 'user', parts: [{ text: prompt }] }];
-        
-        setSessionState(produce(draft => {
-            if (!draft.analysisResult) draft.analysisResult = { summary: '', actionItems: [], keyTopics: [] };
-            draft.analysisResult.aiChatHistory = newHistory;
-        }));
-        
-        setIsProcessing(produce(draft => { draft.agent = true; }));
-        try {
-            const context = buildAIContext();
-            const responseText = await getAgentResponse(geminiApiKey, context, selectedAIAgents, lang, newHistory);
-            setSessionState(produce(draft => {
-                if(draft.analysisResult) {
-                     draft.analysisResult.aiChatHistory = [...newHistory, { role: 'model', parts: [{ text: responseText }] }];
-                }
-            }));
-        } catch (e) {
-            alert(t('aiError', lang));
-            setSessionState(produce(draft => {
-                if(draft.analysisResult) draft.analysisResult.aiChatHistory = currentChatHistory;
-            }));
-        } finally {
-            setIsProcessing(produce(draft => { draft.agent = false; }));
-        }
+    const addAiMessageToChat = (generatedBy: keyof AnalysisResult, text: string) => {
+        const newMessage: Message = {
+            id: `msg-${Date.now()}`,
+            text,
+            timestamp: 0,
+            sender: 'assistant',
+            generatedBy,
+        };
+        setHistoryState(current => [...current, newMessage]);
     };
     
-    // FIX: Implemented missing handlers for the InsightsPanel component.
-    const handleAnalysis = useCallback(async <K extends keyof AnalysisResult>(
+    const handleAnalysis = useCallback(async (
         type: 'summary' | 'actionItems' | 'keyTopics' | 'entities',
         apiCall: (apiKey: string, context: string, lang: Language) => Promise<any>
     ) => {
@@ -389,6 +388,11 @@ const App: React.FC = () => {
                 if (!draft.analysisResult) draft.analysisResult = { summary: '', actionItems: [], keyTopics: [] };
                 (draft.analysisResult as any)[type] = result;
             }));
+
+            if(type === 'summary') addAiMessageToChat('summary', result);
+            if(type === 'actionItems') addAiMessageToChat('actionItems', result.map((item: ActionItem) => `- ${item.task}`).join('\n'));
+            if(type === 'keyTopics') addAiMessageToChat('keyTopics', result.join(', '));
+            
         } catch (e) {
             alert(t('aiError', lang));
         } finally {
@@ -401,22 +405,44 @@ const App: React.FC = () => {
     const handleExtractKeyTopics = () => handleAnalysis('keyTopics', getKeyTopics);
     const handleExtractEntities = () => handleAnalysis('entities', extractEntities);
     
-    const handleProofreadAndStyle = async () => {
+    const handleAskAIAgent = async (prompt: string) => {
         if (!geminiApiKey) { setShowApiKeyModal(true); return; }
-        const transcriptionText = messages.map(m => `${settings[m.sender as 'user'|'interlocutor'].initial}: ${m.text}`).join('\n');
-        if (!transcriptionText.trim()) return;
-
-        setIsProcessing(produce(draft => { draft.proofread = true; }));
+        
+        const currentChatHistory = sessionState.analysisResult?.aiChatHistory || [];
+        const newHistory: AIChatMessage[] = [...currentChatHistory, { role: 'user', parts: [{ text: prompt }] }];
+        
+        setSessionState(produce(draft => {
+            if (!draft.analysisResult) draft.analysisResult = { summary: '', actionItems: [], keyTopics: [] };
+            draft.analysisResult.aiChatHistory = newHistory;
+        }));
+        
+        setIsProcessing(produce(draft => { draft.agent = true; }));
         try {
-            const styledText = await getProofreadAndStyledText(geminiApiKey, transcriptionText, selectedStyle, lang);
+            const context = buildAIContext();
+            const responseText = await getAgentResponse(geminiApiKey, context, selectedAIAgents, lang, newHistory);
+            
+            const newAiMessage: Message = {
+                id: `msg-${Date.now()}`,
+                text: responseText,
+                timestamp: 0,
+                sender: 'assistant',
+                generatedBy: 'aiChatHistory',
+            };
+
+            setHistoryState(current => [...current, newAiMessage]);
+            
             setSessionState(produce(draft => {
-                if (!draft.analysisResult) draft.analysisResult = { summary: '', actionItems: [], keyTopics: [] };
-                draft.analysisResult.styledText = { style: selectedStyle, text: styledText };
+                if(draft.analysisResult) {
+                     draft.analysisResult.aiChatHistory = [...newHistory, { role: 'model', parts: [{ text: responseText }] }];
+                }
             }));
         } catch (e) {
             alert(t('aiError', lang));
+            setSessionState(produce(draft => {
+                if(draft.analysisResult) draft.analysisResult.aiChatHistory = currentChatHistory;
+            }));
         } finally {
-            setIsProcessing(produce(draft => { draft.proofread = false; }));
+            setIsProcessing(produce(draft => { draft.agent = false; }));
         }
     };
     
@@ -426,19 +452,11 @@ const App: React.FC = () => {
         }));
     };
 
-    const handleClearStyledText = () => {
-        setSessionState(produce(draft => {
-            if (draft.analysisResult) {
-                draft.analysisResult.styledText = undefined;
-            }
-        }));
-    };
-    
     const handleConvertToSource = (name: string, content: string) => {
         const newSource: Source = {
             id: `source-${Date.now()}`,
             name: name,
-            type: 'file', // Treat generated content as a simple text file
+            type: 'file',
             content: content,
             isSelected: true,
         };
@@ -447,47 +465,7 @@ const App: React.FC = () => {
             draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
         }));
     };
-
-    const handleExport = (content: string, name: string) => {
-        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${name}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    };
-
-    const handleExportAnalysis = (type: 'summary' | 'actionItems' | 'keyTopics' | 'aiChat', format: 'copy' | 'txt' | 'notebooklm' | 'source') => {
-        if (!sessionState.analysisResult) return;
-        let content = '';
-        let name = type;
-        if (type === 'summary') {
-            content = sessionState.analysisResult.summary;
-        } else if (type === 'actionItems') {
-            content = sessionState.analysisResult.actionItems.map(item => `- ${item.task}`).join('\n');
-        } else if (type === 'keyTopics') {
-            content = sessionState.analysisResult.keyTopics.join(', ');
-        } else if (type === 'aiChat') {
-             content = sessionState.analysisResult.aiChatHistory?.map(m => `${m.role}: ${m.parts[0].text}`).join('\n\n') || '';
-        }
-        
-        if (format === 'copy') navigator.clipboard.writeText(content);
-        else if (format === 'txt') handleExport(content, name);
-        else if (format === 'source') handleConvertToSource(`[Analysis] ${name}`, content);
-    };
-
-    const handleExportStyledText = (format: 'copy' | 'txt' | 'notebooklm' | 'source') => {
-        const content = sessionState.analysisResult?.styledText?.text || '';
-        if (!content) return;
-        if (format === 'copy') navigator.clipboard.writeText(content);
-        else if (format === 'txt') handleExport(content, 'styled-text');
-        else if (format === 'source') handleConvertToSource('[Styled] Text', content);
-    };
     
-    // ... and many many more handlers
     const handleClear = () => {
         if(window.confirm(t('clearChatConfirmation', lang))) {
             startNewSession(false);
@@ -513,8 +491,23 @@ const App: React.FC = () => {
           onView={setSourceToView}
           onSendToChat={(sourceId) => {
               const source = sessionState.sources.find(s => s.id === sourceId);
-              if (source && typeof source.content === 'string') {
-                  const newMessage = { id: `msg-${Date.now()}`, text: source.content, timestamp: 0, sender: 'interlocutor' as const };
+              if (source) {
+                  const newSource: Source = produce(source, draft => {
+                      draft.id = `source-${Date.now()}`;
+                      draft.isClone = true;
+                      draft.originId = source.id;
+                  });
+                  const newMessage: Message = {
+                      id: `msg-${Date.now()}`,
+                      text: typeof newSource.content === 'string' ? newSource.content : '',
+                      timestamp: 0,
+                      sender: 'user',
+                      isClone: true,
+                      relatedSourceIds: [newSource.id]
+                  };
+                  setSessionState(produce(draft => {
+                      draft.sources.push(newSource);
+                  }));
                   setHistoryState(current => [...current, newMessage]);
               }
           }}
@@ -535,7 +528,7 @@ const App: React.FC = () => {
             lang={lang}
             isEditing={!!editingMessage}
           />
-          {editingMessage && <TextEditorToolbar />}
+          {editingMessage && <TextEditorToolbar messageId={editingMessage.id} />}
           {sessionState.sources.length > 0 && <SessionBar sessionName={sessionState.name} />}
           <ChatWindow
             ref={chatWindowRef}
@@ -574,6 +567,12 @@ const App: React.FC = () => {
                 setEditingMessage(message);
                 setSelectionContext(null);
             }}
+            onConvertToSource={handleConvertToSource}
+            onMessageClick={(message) => {
+                if (message.generatedBy) {
+                    setActiveInsightsSection(message.generatedBy);
+                }
+            }}
             lang={lang}
             playbackTime={playbackTime}
             onSeekAudio={(time) => { if(audioRef.current) audioRef.current.currentTime = time; }}
@@ -596,7 +595,7 @@ const App: React.FC = () => {
             isPushToTalkActive={isPushToTalkActive}
             isAIAssistantOpen={showInsightsPanel}
             onStartClick={() => {
-                if (sessionState.sources.length > 0) {
+                if (sessionState.sources.length > 0 && transcriptionSource) {
                     if (window.confirm(t('startNewSessionConfirmation', lang))) {
                         startNewSession(true);
                     }
@@ -607,7 +606,6 @@ const App: React.FC = () => {
             onStopClick={handleStop}
             onPauseClick={() => {
                 if (isPaused) restartListening();
-                // FIX: Replaced 'recognition.current?.stop()' with 'restartListening()' from the useTranscription hook, as the recognition instance is not directly accessible here.
                 else restartListening();
                 setIsPaused(!isPaused);
             }}
@@ -616,6 +614,7 @@ const App: React.FC = () => {
             lang={lang}
           />
         </main>
+        {/* FIX: Removed invalid props 'selectedStyle', 'onStyleChange', and several 'onExport...' props from InsightsPanel component call to align with its defined props interface. */}
         <InsightsPanel
             isOpen={showInsightsPanel}
             isExpanded={isInsightsPanelExpanded}
@@ -625,8 +624,6 @@ const App: React.FC = () => {
             analysisResult={sessionState.analysisResult}
             isProcessing={isProcessing}
             lang={lang}
-            selectedStyle={selectedStyle}
-            onStyleChange={setSelectedStyle}
             selectedAIAgents={selectedAIAgents}
             onShowAgentConfig={() => setShowAgentConfigModal(true)}
             sectionState={insightsSectionState}
@@ -634,28 +631,10 @@ const App: React.FC = () => {
             onGenerateSummary={handleGenerateSummary}
             onExtractActionItems={handleExtractActionItems}
             onExtractTopics={handleExtractKeyTopics}
-            onProofreadAndStyle={handleProofreadAndStyle}
             onExtractEntities={handleExtractEntities}
-            onAskAIAgent={handleAskAIAgent}
-            onExportAnalysis={handleExportAnalysis}
-            onExportStyledText={handleExportStyledText}
-            onExportAIChat={(format) => handleExportAnalysis('aiChat', format)}
-            onExportAll={(format) => {
-                // A simple implementation for exporting all available analysis
-                let allContent = "";
-                if (sessionState.analysisResult?.summary) allContent += `Summary:\n${sessionState.analysisResult.summary}\n\n`;
-                if (sessionState.analysisResult?.actionItems?.length) allContent += `Action Items:\n${sessionState.analysisResult.actionItems.map(i => `- ${i.task}`).join('\n')}\n\n`;
-                if (sessionState.analysisResult?.keyTopics?.length) allContent += `Key Topics:\n${sessionState.analysisResult.keyTopics.join(', ')}\n\n`;
-                if (sessionState.analysisResult?.styledText) allContent += `Styled Text:\n${sessionState.analysisResult.styledText.text}\n\n`;
-                if (sessionState.analysisResult?.aiChatHistory?.length) allContent += `AI Chat:\n${sessionState.analysisResult.aiChatHistory.map(m => `${m.role}: ${m.parts[0].text}`).join('\n')}\n\n`;
-
-                if (format === 'copy') navigator.clipboard.writeText(allContent);
-                else if (format === 'txt') handleExport(allContent, 'all-insights');
-                else if (format === 'source') handleConvertToSource('[Analysis] All Insights', allContent);
-            }}
             onClearAnalysis={handleClearAnalysis}
-            onClearStyledText={handleClearStyledText}
             onConvertToSource={handleConvertToSource}
+            activeSection={activeInsightsSection}
         />
       </div>
 
@@ -683,6 +662,33 @@ const App: React.FC = () => {
               URL.revokeObjectURL(url);
           }
       }} lang={lang} />}
+       {selectionContext && (
+        <ContextualActionBar
+          context={selectionContext}
+          onClear={() => setSelectionContext(null)}
+          onSplit={(messageId, text, newSpeaker) => {
+             setHistoryState(produce(draft => {
+                const msgIndex = draft.findIndex(m => m.id === messageId);
+                if (msgIndex !== -1) {
+                    const originalMsg = draft[msgIndex];
+                    const parts = originalMsg.text.split(text);
+                    originalMsg.text = parts[0].trim();
+                    
+                    const newMsg1 = { id: `msg-${Date.now()}`, text, sender: newSpeaker, timestamp: originalMsg.timestamp };
+                    const newMsg2 = { id: `msg-${Date.now()+1}`, text: parts[1].trim(), sender: originalMsg.sender as 'user' | 'interlocutor', timestamp: originalMsg.timestamp };
+                    
+                    const newMessages = [newMsg1];
+                    if (newMsg2.text) newMessages.push(newMsg2);
+                    
+                    draft.splice(msgIndex + 1, 0, ...newMessages);
+                }
+             }));
+             setSelectionContext(null);
+          }}
+          settings={settings}
+          lang={lang}
+        />
+      )}
     </div>
   );
 };

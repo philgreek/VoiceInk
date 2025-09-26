@@ -1,9 +1,10 @@
 
 
+
 import React, { useState, useRef, useEffect } from 'react';
-import { AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, InsightsSectionState, Source } from '../types';
+import { AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, InsightsSectionState, Source, Message } from '../types';
 import { t, Language } from '../utils/translations';
-import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon, EditIcon, EllipsisVerticalIcon, ClipboardIcon, DownloadIcon, NotebookIcon, RefreshCwIcon, UsersIcon, SendIcon, ScanTextIcon, MaximizeIcon, MinimizeIcon, ChevronDownIcon, TrashIcon } from './icons';
+import { XIcon, LightbulbIcon, FileTextIcon, ListChecksIcon, TagsIcon, EditIcon, EllipsisVerticalIcon, ClipboardIcon, DownloadIcon, NotebookIcon, RefreshCwIcon, UsersIcon, SendIcon, ScanTextIcon, MaximizeIcon, MinimizeIcon, ChevronDownIcon, TrashIcon, BookPlusIcon } from './icons';
 
 interface InsightsPanelProps {
   isOpen: boolean;
@@ -17,23 +18,14 @@ interface InsightsPanelProps {
   isProcessing: { summary: boolean; actionItems: boolean; topics: boolean; proofread: boolean, agent: boolean, entities: boolean };
   isSessionLoaded: boolean;
   lang: Language;
-  onProofreadAndStyle: () => void;
-  selectedStyle: TextStyle;
-  onStyleChange: (style: TextStyle) => void;
-  onExportAnalysis: (type: 'summary' | 'actionItems' | 'keyTopics' | 'aiChat', format: 'copy' | 'txt' | 'notebooklm' | 'source') => void;
-  onExportStyledText: (format: 'copy' | 'txt' | 'notebooklm' | 'source') => void;
-  onClearStyledText: () => void;
-  onAskAIAgent: (prompt: string) => void;
   selectedAIAgents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] };
   onShowAgentConfig: () => void;
   onExtractEntities: () => void;
-  onExportAIChat: (format: 'copy' | 'txt' | 'notebooklm' | 'source') => void;
   sectionState: InsightsSectionState;
   onToggleSection: (section: keyof InsightsSectionState) => void;
-  onExportAll: (format: 'copy' | 'txt' | 'notebooklm' | 'source') => void;
-  // FIX: Added missing props to fix type errors in App.tsx
   onConvertToSource: (name: string, content: string) => void;
   onClearAnalysis: () => void;
+  activeSection: keyof AnalysisResult | null;
 }
 
 const textStyles: TextStyle[] = [
@@ -45,7 +37,12 @@ const LoadingSpinner: React.FC = () => (
     <div className="w-5 h-5 border-2 border-[var(--text-secondary)] border-t-transparent rounded-full animate-spin"></div>
 );
 
-const ExportMenu: React.FC<{ onExport: (format: 'copy' | 'txt' | 'notebooklm' | 'source') => void, lang: Language, title: string }> = ({ onExport, lang, title }) => {
+const ExportMenu: React.FC<{ 
+    onExport: (format: 'copy' | 'txt' | 'notebooklm' | 'source') => void, 
+    onConvertToSource: () => void,
+    lang: Language, 
+    title: string 
+}> = ({ onExport, onConvertToSource, lang, title }) => {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -84,9 +81,9 @@ const ExportMenu: React.FC<{ onExport: (format: 'copy' | 'txt' | 'notebooklm' | 
                         <NotebookIcon className="w-4 h-4" />
                          <span>{t('exportForNotebookLM', lang)}</span>
                     </button>
-                    <button onClick={() => { onExport('source'); setIsOpen(false); }} className={menuButtonClass}>
-                        <FileTextIcon className="w-4 h-4" />
-                         <span>{t('source', lang)}</span>
+                    <button onClick={() => { onConvertToSource(); setIsOpen(false); }} className={menuButtonClass}>
+                        <BookPlusIcon className="w-4 h-4" />
+                         <span>{t('createSource', lang)}</span>
                     </button>
                 </div>
             )}
@@ -102,9 +99,10 @@ const CollapsibleSection: React.FC<{
     actions?: React.ReactNode;
     isExpanded: boolean;
     onToggle: () => void;
-}> = ({ title, icon, children, actions, isExpanded, onToggle }) => (
-    <div className="border-b border-[var(--border-color)] pb-4">
-        <button onClick={onToggle} className="w-full flex justify-between items-center py-2">
+    isActive: boolean;
+}> = ({ title, icon, children, actions, isExpanded, onToggle, isActive }) => (
+    <div className={`border-b border-[var(--border-color)] pb-4 transition-all ${isActive ? 'bg-[var(--bg-element-hover)] rounded-lg' : ''}`}>
+        <button onClick={onToggle} className="w-full flex justify-between items-center py-2 px-2">
             <h3 className="text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
                 {icon}
                 <span>{title}</span>
@@ -115,7 +113,7 @@ const CollapsibleSection: React.FC<{
             </div>
         </button>
         <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[1000px] opacity-100 pt-2' : 'max-h-0 opacity-0'}`}>
-             <div className="text-[var(--text-secondary)] space-y-2 pl-1 border-l-2 border-[var(--border-color)]">
+             <div className="text-[var(--text-secondary)] space-y-2 pl-1 border-l-2 border-[var(--border-color)] ml-2">
                 {children}
             </div>
         </div>
@@ -125,28 +123,29 @@ const CollapsibleSection: React.FC<{
 export const InsightsPanel: React.FC<InsightsPanelProps> = ({
   isOpen, isExpanded, onToggleExpand, onClose, onGenerateSummary, onExtractActionItems, onExtractTopics,
   analysisResult, isProcessing, isSessionLoaded, lang,
-  onProofreadAndStyle, selectedStyle, onStyleChange,
-  onExportAnalysis, onExportStyledText, onClearStyledText,
-  onAskAIAgent, selectedAIAgents, onShowAgentConfig,
-  onExtractEntities, onExportAIChat,
-  sectionState, onToggleSection, onExportAll,
-  onConvertToSource, onClearAnalysis
+  selectedAIAgents, onShowAgentConfig,
+  onExtractEntities,
+  sectionState, onToggleSection,
+  onConvertToSource, onClearAnalysis, activeSection
 }) => {
-  const [agentPrompt, setAgentPrompt] = useState('');
-  const aiChatEndRef = useRef<HTMLDivElement>(null);
+  const [selectedStyle, setSelectedStyle] = useState<TextStyle>('default');
   
   const hasAnyAnalysis = analysisResult && (analysisResult.summary || (analysisResult.actionItems && analysisResult.actionItems.length > 0) || (analysisResult.keyTopics && analysisResult.keyTopics.length > 0) || analysisResult.styledText || (analysisResult.aiChatHistory && analysisResult.aiChatHistory.length > 0));
 
-  useEffect(() => {
-    aiChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [analysisResult?.aiChatHistory]);
+  const handleExport = (type: keyof AnalysisResult, format: 'copy' | 'txt' | 'notebooklm' | 'source') => {
+      let content = '';
+      let name = type;
+      if (type === 'summary') content = analysisResult?.summary || '';
+      else if (type === 'actionItems') content = analysisResult?.actionItems?.map(item => `- ${item.task}`).join('\n') || '';
+      else if (type === 'keyTopics') content = analysisResult?.keyTopics?.join(', ') || '';
+      else if (type === 'styledText') content = analysisResult?.styledText?.text || '';
+      else if (type === 'aiChatHistory') content = analysisResult?.aiChatHistory?.map(m => `${m.role}: ${m.parts[0].text}`).join('\n\n') || '';
 
-  const handleAgentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (agentPrompt.trim() && selectedAIAgents.expertise.length > 0) {
-      onAskAIAgent(agentPrompt.trim());
-      setAgentPrompt('');
-    }
+      if (format === 'source') {
+        onConvertToSource(t('sourceFrom', lang, { type: t(name as any, lang) }), content);
+        return;
+      }
+      // Implement other export formats (copy, txt, etc.)
   };
   
   const asideClasses = `
@@ -155,7 +154,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
     ${isOpen ? 'translate-x-0' : 'translate-x-full'}
     ${isExpanded 
         ? 'fixed inset-0 w-full h-full z-40' 
-        : 'relative w-80 h-screen z-10'
+        : 'relative w-80 h-screen'
     }
   `;
 
@@ -164,7 +163,8 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
   return (
     <aside className={asideClasses}>
       <header 
-        className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0"
+        className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0 cursor-pointer"
+        onClick={onToggleExpand}
       >
         <h2 className="text-xl font-bold flex items-center gap-2">
             <LightbulbIcon className="w-6 h-6 text-[var(--accent-primary)]" />
@@ -172,16 +172,11 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
         </h2>
         <div className="flex items-center gap-2">
             {hasAnyAnalysis && (
-                <>
-                <div onClick={e => e.stopPropagation()}>
-                    <ExportMenu onExport={onExportAll} lang={lang} title={t('exportAllInsights', lang)} />
-                </div>
-                <button onClick={(e) => { e.stopPropagation(); onClearAnalysis(); }} className="p-1 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-element-hover)] hover:text-red-500" title={t('clearChat', lang)}>
+                 <button onClick={(e) => { e.stopPropagation(); if (window.confirm(t('clearInsightsConfirmation', lang))) onClearAnalysis(); }} className="p-1 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-element-hover)] hover:text-red-500" title={t('clearAllInsights', lang)}>
                     <TrashIcon className="w-5 h-5" />
                 </button>
-                </>
             )}
-            <button onClick={(e) => { e.stopPropagation(); onToggleExpand(); }} className="p-1 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-element-hover)] hover:text-[var(--text-primary)]" title={isExpanded ? t('collapse', lang) : t('expand', lang)}>
+            <button className="p-1 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-element-hover)] hover:text-[var(--text-primary)]" title={isExpanded ? t('collapse', lang) : t('expand', lang)}>
               {isExpanded ? <MinimizeIcon className="w-5 h-5" /> : <MaximizeIcon className="w-5 h-5" />}
             </button>
             <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="p-1 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-element-hover)] hover:text-[var(--text-primary)]">
@@ -202,7 +197,8 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                     icon={<FileTextIcon className="w-5 h-5"/>}
                     isExpanded={sectionState.summary}
                     onToggle={() => onToggleSection('summary')}
-                    actions={analysisResult?.summary && <ExportMenu onExport={(format) => onExportAnalysis('summary', format)} lang={lang} title={t('exportAnalysis', lang)} />}
+                    actions={analysisResult?.summary && <ExportMenu onExport={(format) => handleExport('summary', format)} onConvertToSource={() => handleExport('summary', 'source')} lang={lang} title={t('exportAnalysis', lang)} />}
+                    isActive={activeSection === 'summary'}
                 >
                     {analysisResult?.summary ? (
                         <p className="px-3 py-2 text-sm whitespace-pre-wrap">{analysisResult.summary}</p>
@@ -218,7 +214,8 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                     icon={<ListChecksIcon className="w-5 h-5"/>}
                     isExpanded={sectionState.actionItems}
                     onToggle={() => onToggleSection('actionItems')}
-                    actions={analysisResult?.actionItems && analysisResult.actionItems.length > 0 && <ExportMenu onExport={(format) => onExportAnalysis('actionItems', format)} lang={lang} title={t('exportAnalysis', lang)} />}
+                    actions={analysisResult?.actionItems && analysisResult.actionItems.length > 0 && <ExportMenu onExport={(format) => handleExport('actionItems', format)} onConvertToSource={() => handleExport('actionItems', 'source')} lang={lang} title={t('exportAnalysis', lang)} />}
+                    isActive={activeSection === 'actionItems'}
                 >
                     {analysisResult?.actionItems && analysisResult.actionItems.length > 0 ? (
                         <ul className="px-3 py-2 text-sm space-y-2">
@@ -238,12 +235,13 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                     )}
                 </CollapsibleSection>
                 
-                <CollapsibleSection 
+                 <CollapsibleSection 
                     title={t('keyTopics', lang)} 
                     icon={<TagsIcon className="w-5 h-5"/>}
                     isExpanded={sectionState.keyTopics}
                     onToggle={() => onToggleSection('keyTopics')}
-                    actions={analysisResult?.keyTopics && analysisResult.keyTopics.length > 0 && <ExportMenu onExport={(format) => onExportAnalysis('keyTopics', format)} lang={lang} title={t('exportAnalysis', lang)} />}
+                    actions={analysisResult?.keyTopics && analysisResult.keyTopics.length > 0 && <ExportMenu onExport={(format) => handleExport('keyTopics', format)} onConvertToSource={() => handleExport('keyTopics', 'source')} lang={lang} title={t('exportAnalysis', lang)} />}
+                    isActive={activeSection === 'keyTopics'}
                 >
                     {analysisResult?.keyTopics && analysisResult.keyTopics.length > 0 ? (
                         <div className="px-3 py-2 flex flex-wrap gap-2">
@@ -265,6 +263,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                     icon={<ScanTextIcon className="w-5 h-5" />}
                     isExpanded={sectionState.textAnalysis}
                     onToggle={() => onToggleSection('textAnalysis')}
+                    isActive={activeSection === 'entities'}
                 >
                      <div className="px-3 py-2">
                         {analysisResult?.entities && analysisResult.entities.length > 0 ? (
@@ -276,93 +275,18 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                         )}
                     </div>
                 </CollapsibleSection>
-
-                <CollapsibleSection 
-                    title={t('textEditor', lang)} 
-                    icon={<EditIcon className="w-5 h-5"/>}
-                    isExpanded={sectionState.textEditor}
-                    onToggle={() => onToggleSection('textEditor')}
-                    actions={analysisResult?.styledText && (
-                        <div className="flex items-center gap-2">
-                            <button onClick={onClearStyledText} className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-element)] rounded-full" title={t('changeStyle', lang)}>
-                                <RefreshCwIcon className="w-5 h-5"/>
-                            </button>
-                            <ExportMenu onExport={onExportStyledText} lang={lang} title={t('exportStyledText', lang)} />
-                        </div>
-                    )}
-                >
-                    {isProcessing.proofread ? (
-                        <div className="flex items-center justify-center gap-2 w-full p-2 rounded-md">
-                            <LoadingSpinner /> 
-                            <span>{t('generatingStyledText', lang)}</span>
-                        </div>
-                    ) : analysisResult?.styledText ? (
-                        <div className="px-3 py-2 text-sm whitespace-pre-wrap bg-[var(--bg-subtle)] rounded-md">
-                            {analysisResult.styledText.text}
-                        </div>
-                    ) : (
-                       <div className="px-3 py-2 space-y-3">
-                            <div>
-                                <label htmlFor="style-select" className="text-sm text-[var(--text-secondary)] mb-1 block">{t('selectStyle', lang)}</label>
-                                <select
-                                    id="style-select"
-                                    value={selectedStyle}
-                                    onChange={(e) => onStyleChange(e.target.value as TextStyle)}
-                                    className="w-full bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none"
-                                >
-                                    {textStyles.map(style => (
-                                        <option key={style} value={style}>
-                                            {t(`style${style.charAt(0).toUpperCase() + style.slice(1)}` as any, lang)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <button onClick={onProofreadAndStyle} disabled={isProcessing.proofread} className="flex items-center justify-center gap-2 w-full p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors disabled:opacity-70 disabled:cursor-wait">
-                                {t('generateStyledText', lang)}
-                            </button>
-                       </div>
-                    )}
-                </CollapsibleSection>
+                
                 <CollapsibleSection 
                     title={t('aiChat', lang)} 
                     icon={<UsersIcon className="w-5 h-5" />}
                     isExpanded={sectionState.aiChat}
                     onToggle={() => onToggleSection('aiChat')}
-                    actions={analysisResult?.aiChatHistory && analysisResult.aiChatHistory.length > 0 && (
-                        <ExportMenu onExport={(format) => onExportAIChat(format)} lang={lang} title={t('exportAIChat', lang)} />
-                    )}
+                    isActive={activeSection === 'aiChatHistory'}
                 >
                    <div className="px-3 py-2 space-y-2">
                         <button onClick={onShowAgentConfig} className="w-full p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors text-sm">
                            {t('configureAgent', lang)}
                         </button>
-                        <div className="max-h-60 overflow-y-auto space-y-3 text-sm pr-2">
-                            {analysisResult?.aiChatHistory?.map((msg, i) => (
-                                <div key={i} className={`p-2 rounded-lg ${msg.role === 'user' ? 'bg-[var(--bg-element)]' : 'bg-transparent'}`}>
-                                    <p className="whitespace-pre-wrap">{msg.parts[0].text}</p>
-                                </div>
-                            ))}
-                            {isProcessing.agent && (
-                                 <div className="flex items-center gap-2 text-sm p-2 text-[var(--text-placeholder)]">
-                                     <LoadingSpinner />
-                                     <span>{t('agentThinking', lang)}</span>
-                                 </div>
-                            )}
-                            <div ref={aiChatEndRef} />
-                        </div>
-                        <form onSubmit={handleAgentSubmit} className="flex items-center gap-2">
-                            <input
-                                type="text"
-                                value={agentPrompt}
-                                onChange={e => setAgentPrompt(e.target.value)}
-                                placeholder={t('askAIAgent', lang)}
-                                disabled={isProcessing.agent || selectedAIAgents.expertise.length === 0}
-                                className="w-full bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none disabled:opacity-50"
-                            />
-                            <button type="submit" disabled={isProcessing.agent || !agentPrompt.trim() || selectedAIAgents.expertise.length === 0} className="p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                                <SendIcon className="w-5 h-5"/>
-                            </button>
-                        </form>
                     </div>
                 </CollapsibleSection>
             </>

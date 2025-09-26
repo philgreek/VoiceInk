@@ -3,6 +3,9 @@ export interface Message {
   text: string;
   timestamp: number; // Seconds from the start of the recording
   sender: 'user' | 'interlocutor' | 'assistant';
+  isClone?: boolean;
+  relatedSourceIds?: string[];
+  generatedBy?: keyof AnalysisResult;
 }
 
 export type SourceType = 'transcription' | 'audio' | 'file' | 'url';
@@ -13,6 +16,8 @@ export interface Source {
     type: SourceType;
     content: Message[] | string; // Message[] for transcription, string for others
     isSelected?: boolean;
+    isClone?: boolean;
+    originId?: string;
 }
 
 export interface SpeakerProfile {

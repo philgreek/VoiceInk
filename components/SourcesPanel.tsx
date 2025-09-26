@@ -1,9 +1,9 @@
 
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Source } from '../types';
 import { t, Language } from '../utils/translations';
-import { PlusCircleIcon, TrashIcon, FileAudioIcon, FileTextIcon, LinkIcon, MicIcon, FileIcon, EllipsisVerticalIcon, EditIcon, ScanTextIcon, SendIcon } from './icons';
+import { PlusCircleIcon, TrashIcon, FileAudioIcon, FileTextIcon, LinkIcon, MicIcon, FileIcon, EllipsisVerticalIcon, EditIcon, SendIcon, EyeIcon } from './icons';
 
 interface SourcesPanelProps {
   isOpen: boolean;
@@ -11,7 +11,7 @@ interface SourcesPanelProps {
   selectedSourceIds: string[];
   onAddSource: () => void;
   onRemoveSource: (sourceId: string) => void;
-  onToggleSelection: (sourceId: string) => void;
+  onToggleSelection: (sourceId: string, isSelectAll?: boolean, selectAllState?: boolean) => void;
   onRename: (source: Source) => void;
   onView: (source: Source) => void;
   onSendToChat: (sourceId: string) => void;
@@ -51,8 +51,6 @@ const SourceItemMenu: React.FC<{
     
     const menuButtonClass = "w-full flex items-center gap-3 px-3 py-2 text-sm text-left text-[var(--text-primary)] hover:bg-[var(--bg-element-hover)] rounded-md";
 
-    const canSendToChat = source.type !== 'transcription' && typeof source.content === 'string';
-
     return (
         <div className="relative" ref={menuRef}>
             <button 
@@ -64,14 +62,14 @@ const SourceItemMenu: React.FC<{
             {isOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-[var(--bg-subtle)] backdrop-blur-md border border-[var(--border-color)] rounded-lg shadow-xl p-2 z-10">
                     <button onClick={() => { onView(); setIsOpen(false); }} className={menuButtonClass}>
-                        <ScanTextIcon className="w-4 h-4" /> <span>{t('view', lang)}</span>
+                        <EyeIcon className="w-4 h-4" /> <span>{t('view', lang)}</span>
                     </button>
                     <button onClick={() => { onRename(); setIsOpen(false); }} className={menuButtonClass}>
                         <EditIcon className="w-4 h-4" /> <span>{t('rename', lang)}</span>
                     </button>
-                    {canSendToChat && <button onClick={() => { onSendToChat(); setIsOpen(false); }} className={menuButtonClass}>
+                    <button onClick={() => { onSendToChat(); setIsOpen(false); }} className={menuButtonClass}>
                         <SendIcon className="w-4 h-4" /> <span>{t('sendToChat', lang)}</span>
-                    </button>}
+                    </button>
                     <div className="my-1 h-px bg-[var(--border-color)]"></div>
                     <button onClick={() => { onRemove(); setIsOpen(false); }} className={`${menuButtonClass} text-red-500`}>
                         <TrashIcon className="w-4 h-4" /> <span>{t('removeSource', lang)}</span>
@@ -94,13 +92,21 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
   onSendToChat,
   lang,
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const allSelected = sources.length > 0 && selectedSourceIds.length === sources.length;
+
+  const filteredSources = useMemo(() =>
+    sources.filter(source =>
+        source.name.toLowerCase().includes(searchTerm.toLowerCase())
+    ), [sources, searchTerm]);
+
   const asideClasses = `
     relative z-10 overflow-hidden flex-shrink-0 bg-[var(--bg-surface)] border-r border-[var(--border-color)] flex flex-col
     transition-all duration-300 ease-in-out
     ${isOpen ? 'w-80' : 'w-0'}`;
 
   return (
-    <aside className={asideClasses} style={{ transform: isOpen ? 'translateX(0)' : 'translateX(-100%)', paddingLeft: isOpen ? '' : '0', paddingRight: isOpen ? '' : '0' }}>
+    <aside className={asideClasses} style={{ paddingLeft: isOpen ? '' : '0', paddingRight: isOpen ? '' : '0' }}>
       <header className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0">
         <h2 className="text-xl font-bold">{t('sources', lang)}</h2>
         <button 
@@ -111,8 +117,28 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
           <PlusCircleIcon className="w-6 h-6" />
         </button>
       </header>
+      <div className="p-2 border-b border-[var(--border-color)] flex-shrink-0">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder={`${t('search', lang)}...`}
+            className="w-full bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none"
+        />
+      </div>
+      <div className="p-2 border-b border-[var(--border-color)] flex-shrink-0">
+        <label className="w-full flex items-center gap-3 px-2 py-1 text-sm text-[var(--text-primary)] cursor-pointer">
+            <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={(e) => onToggleSelection('', true, e.target.checked)}
+                className="accent-[var(--accent-primary)]"
+            />
+            <span>{t('selectAll', lang)}</span>
+        </label>
+      </div>
       <div className="flex-grow overflow-y-auto p-2 space-y-2">
-        {sources.map(source => (
+        {filteredSources.map(source => (
           <div key={source.id} className={`group bg-[var(--bg-element)] p-2 rounded-lg flex justify-between items-center gap-2 ${selectedSourceIds.includes(source.id) ? 'ring-2 ring-[var(--accent-primary)]' : ''}`}>
             <div className="flex items-center gap-3 min-w-0 flex-grow cursor-pointer" onClick={() => onToggleSelection(source.id)}>
                 <input 
@@ -123,7 +149,9 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
                 />
                 <SourceIcon type={source.type} />
                 <div className="truncate">
-                    <p className="font-semibold text-sm text-[var(--text-primary)] truncate" title={source.name}>{source.name}</p>
+                    <p className="font-semibold text-sm text-[var(--text-primary)] truncate" title={source.name}>
+                        {source.name} {source.isClone && <span className="text-xs text-[var(--text-secondary)]">{t('clone', lang)}</span>}
+                    </p>
                     <p className="text-xs text-[var(--text-secondary)]">{t(`sourceType${source.type.charAt(0).toUpperCase() + source.type.slice(1)}` as any, lang)}</p>
                 </div>
             </div>

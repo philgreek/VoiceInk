@@ -61,7 +61,6 @@ export const useSessionHistory = () => {
     return newSession;
   }, [fetchSessions]);
 
-  // FIX: Replaced 'updateSessionAnalysis' with a more generic 'updateSession' to handle partial updates.
   const updateSession = useCallback(async (sessionId: string, updates: Partial<Session>): Promise<Session> => {
     const db = await initDB();
     const session = await db.get('sessions', sessionId);
