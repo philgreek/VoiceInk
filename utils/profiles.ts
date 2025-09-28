@@ -1,6 +1,6 @@
 import { SessionProfile, StudioTool, SessionProfileId, StudioToolId, TextStyleId } from '../types';
 import {
-    AudioSummaryIcon, VideoSummaryIcon, MindMapIcon, ReportIcon, FlashcardsIcon, TestIcon,
+    AudioSummaryIcon, VideoSummaryIcon, MindMapIcon, ReportIcon, FlashcardsIcon, TestIcon, LightbulbIcon,
     BookOpenIcon, ScaleIcon, HeartHandshakeIcon, StethoscopeIcon, LineChartIcon, BrushIcon, LanguagesIcon, EmotionAnalysisIcon, TonalityAnalysisIcon
 } from '../components/icons';
 
@@ -28,7 +28,7 @@ export const studioTools: Record<StudioToolId, StudioTool> = {
     marketAnalysis: { id: 'marketAnalysis', nameKey: 'toolMarketAnalysis', descriptionKey: 'toolMarketAnalysisDescription', icon: LineChartIcon, category: 'business' },
     financialReport: { id: 'financialReport', nameKey: 'toolFinancialReport', descriptionKey: 'toolFinancialReportDescription', icon: ReportIcon, category: 'business' },
     scriptAnalysis: { id: 'scriptAnalysis', nameKey: 'toolScriptAnalysis', descriptionKey: 'toolScriptAnalysisDescription', icon: VideoSummaryIcon, category: 'creative' },
-    brainstorm: { id: 'brainstorm', nameKey: 'toolBrainstorm', descriptionKey: 'toolBrainstormDescription', icon: MindMapIcon, category: 'creative' },
+    brainstorm: { id: 'brainstorm', nameKey: 'toolBrainstorm', descriptionKey: 'toolBrainstormDescription', icon: LightbulbIcon, category: 'creative' },
     translation: { id: 'translation', nameKey: 'toolTranslation', descriptionKey: 'toolTranslationDescription', icon: LanguagesIcon, category: 'language' },
     grammarCheck: { id: 'grammarCheck', nameKey: 'toolGrammarCheck', descriptionKey: 'toolGrammarCheckDescription', icon: TestIcon, category: 'language' },
     textStyle: { id: 'textStyle', nameKey: 'toolTextStyle', descriptionKey: 'toolTextStyleDescription', icon: BrushIcon, category: 'editing', isConfigurable: true },

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Note, SessionProfileId, StudioToolId, Session, ToolSettings, TextStyleId } from '../types';
 import { t, Language } from '../utils/translations';
@@ -96,7 +95,7 @@ const ToolCard: React.FC<{
             )}
             
             {/* Tooltip */}
-            <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-64 p-3 bg-slate-900 text-white text-xs rounded-md shadow-lg z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-200 invisible group-hover:visible">
+            <div className="absolute top-full mt-2 left-0 w-full p-3 bg-slate-900 text-white text-xs rounded-md shadow-lg z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-200 invisible group-hover:visible">
                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45"></div>
                  <h4 className="font-bold text-sm mb-1 text-slate-100">{t(tool.nameKey, lang)}</h4>
                  <p className="text-slate-300">{t(tool.descriptionKey, lang)}</p>

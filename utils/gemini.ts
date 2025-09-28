@@ -359,3 +359,43 @@ export const getTonalityAnalysis = async (apiKey: string, text: string, lang: La
         handleAIError(error, 'tonality analysis');
     }
 };
+
+export const getBrainstormIdeas = async (apiKey: string, text: string, lang: Language): Promise<string> => {
+    try {
+        const ai = getAIClient(apiKey);
+        const prompt = `You are a creative strategist. Based on the following text, generate a list of new ideas, alternative viewpoints, and related concepts. Think outside the box. Structure the response clearly. Respond in ${lang}.
+
+        Content:
+        ---
+        ${text}
+        ---
+        `;
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+        return safelyGetText(response);
+    } catch (error) {
+        handleAIError(error, 'brainstorming');
+    }
+};
+
+export const getGrammarCheck = async (apiKey: string, text: string, lang: Language): Promise<string> => {
+    try {
+        const ai = getAIClient(apiKey);
+        const prompt = `You are an expert editor. Proofread the following text thoroughly. Correct all grammatical errors, spelling mistakes, and punctuation errors. Return only the corrected version of the text without any additional comments or explanations. The language is ${lang}.
+
+        Content:
+        ---
+        ${text}
+        ---
+        `;
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+        return safelyGetText(response);
+    } catch (error) {
+        handleAIError(error, 'grammar check');
+    }
+};

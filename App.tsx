@@ -22,7 +22,7 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import html2canvas from 'html2canvas';
 import { AudioPlayer } from './components/AudioPlayer';
 import introJs from 'intro.js';
-import { getSummary, getActionItems, getKeyTopics, getProofreadAndStyledText, getAgentResponse, extractEntities, getSourceGuide, getEmotionAnalysis, getTonalityAnalysis, getStyledText } from './utils/gemini';
+import { getSummary, getActionItems, getKeyTopics, getProofreadAndStyledText, getAgentResponse, extractEntities, getSourceGuide, getEmotionAnalysis, getTonalityAnalysis, getStyledText, getBrainstormIdeas, getGrammarCheck } from './utils/gemini';
 import { NotebookLMInstructionsModal } from './components/NotebookLMInstructionsModal';
 import { SourcesPanel } from './components/SourcesPanel';
 import { AddSourceModal } from './components/AddSourceModal';
@@ -504,6 +504,14 @@ const App: React.FC = () => {
                     noteTitleKey = 'toolTextStyle';
                 }
                 break;
+            case 'brainstorm':
+                apiCall = (apiKey, context, lang) => getBrainstormIdeas(apiKey, context, lang);
+                noteTitleKey = 'toolBrainstorm';
+                break;
+            case 'grammarCheck':
+                apiCall = (apiKey, context, lang) => getGrammarCheck(apiKey, context, lang);
+                noteTitleKey = 'toolGrammarCheck';
+                break;
         }
 
         if (apiCall) {
@@ -551,12 +559,14 @@ const App: React.FC = () => {
         }
     };
     
-    const handleConvertToSource = (name: string, content: string) => {
+    const handleConvertNoteToSource = (noteId: string) => {
+        const note = sessionState.notes?.find(n => n.id === noteId);
+        if (!note) return;
         const newSource: Source = {
             id: `source-${Date.now()}`,
-            name: name,
+            name: note.title,
             type: 'file',
-            content: content,
+            content: note.content,
             isSelected: true,
         };
         setSessionState(produce(draft => {
@@ -564,18 +574,22 @@ const App: React.FC = () => {
             draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
         }));
     };
-    
-    const handleConvertNoteToSource = (noteId: string) => {
-        const note = sessionState.notes?.find(n => n.id === noteId);
-        if (!note) return;
-        handleConvertToSource(note.title, note.content);
-    };
 
     const handleConvertAllNotesToSource = () => {
         if (!sessionState.notes || sessionState.notes.length === 0) return;
         const combinedContent = sessionState.notes.map(note => `--- Note: ${note.title} ---\n${note.content}`).join('\n\n');
         const newSourceName = `${t('allNotes', lang)} - ${new Date().toLocaleDateString()}`;
-        handleConvertToSource(newSourceName, combinedContent);
+        const newSource: Source = {
+            id: `source-${Date.now()}`,
+            name: newSourceName,
+            type: 'file',
+            content: combinedContent,
+            isSelected: true,
+        };
+         setSessionState(produce(draft => {
+            draft.sources.push(newSource);
+            draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
+        }));
     };
 
     const handleDeleteNote = (noteId: string) => {
@@ -688,7 +702,6 @@ const App: React.FC = () => {
         />
         <main className={`flex-grow flex flex-col min-w-0 bg-slate-900`}>
           <Header
-            onExport={() => setShowExportModal(true)}
             onClear={handleClear}
             onSettings={() => setShowSettingsModal(true)}
             onHistoryClick={() => setShowHistoryModal(true)}
