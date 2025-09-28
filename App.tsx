@@ -1,24 +1,20 @@
 
-
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-// FIX: Added 'ActionItem' to the import list to resolve the "Cannot find name 'ActionItem'" error.
-import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, InsightsSectionState, Source, SourceType, ActionItem } from './types';
+import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, InsightsSectionState, Source, SourceType, SessionProfileId, Note, StudioToolId, ToolSettings } from './types';
 import { Header } from './components/Header';
 import { SessionBar } from './components/SessionBar';
 import { ChatWindow } from './components/ChatWindow';
 import { TranscriptionControls } from './components/TranscriptionControls';
 import { ExportModal } from './components/ExportModal';
 import { SettingsModal } from './components/SettingsModal';
-import { SessionNameModal } from './components/SessionNameModal';
+import { NewSessionModal } from './components/NewSessionModal';
 import { HistoryModal } from './components/HistoryModal';
-import { ContextualActionBar } from './components/ContextualActionBar';
-import { InsightsPanel } from './components/InsightsPanel';
+import { StudioPanel } from './components/StudioPanel';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { AgentConfigModal } from './components/AgentConfigModal';
 import { produce } from 'immer';
-import { t, Language } from './utils/translations';
+import { t, Language, translations } from './utils/translations';
 import { useHistoryState } from './hooks/useHistoryState';
 import { useSessionHistory } from './hooks/useSessionHistory';
 import jsPDF from 'jspdf';
@@ -26,14 +22,16 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import html2canvas from 'html2canvas';
 import { AudioPlayer } from './components/AudioPlayer';
 import introJs from 'intro.js';
-import { getSummary, getActionItems, getKeyTopics, getProofreadAndStyledText, getAgentResponse, extractEntities } from './utils/gemini';
+import { getSummary, getActionItems, getKeyTopics, getProofreadAndStyledText, getAgentResponse, extractEntities, getSourceGuide, getEmotionAnalysis, getTonalityAnalysis, getStyledText } from './utils/gemini';
 import { NotebookLMInstructionsModal } from './components/NotebookLMInstructionsModal';
 import { SourcesPanel } from './components/SourcesPanel';
 import { AddSourceModal } from './components/AddSourceModal';
 import { MainAIChatInput } from './components/MainAIChatInput';
 import { TextEditorToolbar } from './components/TextEditorToolbar';
-import { ViewSourceModal } from './components/ViewSourceModal';
 import { RenameSourceModal } from './components/RenameSourceModal';
+import { SearchSourcesModal } from './components/SearchSourcesModal';
+import { profiles, studioTools } from './utils/profiles';
+import { StudioConfigModal } from './components/StudioConfigModal';
 
 const MAX_FILE_SIZE_MB = 4.5;
 
@@ -48,12 +46,18 @@ const getDefaultSettings = (): Settings => ({
 const getInitialSession = (): Session => ({
     id: `session-${Date.now()}`,
     name: 'New Session',
+    profileId: 'pedagogical', // Default profile
+    activeTools: profiles['pedagogical'].tools,
     sources: [],
+    notes: [],
     settings: getDefaultSettings(),
     savedAt: new Date().toISOString(),
     hasAudio: false,
     analysisResult: null,
     selectedSourceIds: [],
+    toolSettings: {
+        textStyle: 'scientific'
+    }
 });
 
 
@@ -83,38 +87,39 @@ const App: React.FC = () => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [showSessionNameModal, setShowSessionNameModal] = useState(false);
+  const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [showNotebookLMInstructions, setShowNotebookLMInstructions] = useState(false);
-  const [showSourcesPanel, setShowSourcesPanel] = useState(true);
-  const [showInsightsPanel, setShowInsightsPanel] = useState(true);
-  const [isInsightsPanelExpanded, setIsInsightsPanelExpanded] = useState(false);
+  const [isStudioPanelCollapsed, setIsStudioPanelCollapsed] = useState(true);
+  const [isSourcesPanelCollapsed, setIsSourcesPanelCollapsed] = useState(false);
   const [showAgentConfigModal, setShowAgentConfigModal] = useState(false);
   const [showAddSourceModal, setShowAddSourceModal] = useState(false);
-  const [sourceToView, setSourceToView] = useState<Source | null>(null);
+  const [showSearchSourcesModal, setShowSearchSourcesModal] = useState(false);
   const [sourceToRename, setSourceToRename] = useState<Source | null>(null);
+  const [showStudioConfigModal, setShowStudioConfigModal] = useState(false);
 
   // UI interaction state
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
-  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   
   // AI and Data state
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(() => sessionStorage.getItem('geminiApiKey'));
   const [isProcessing, setIsProcessing] = useState({ summary: false, actionItems: false, topics: false, proofread: false, agent: false, entities: false });
   const [isProcessingSource, setIsProcessingSource] = useState(false);
+  const [isProcessingGuide, setIsProcessingGuide] = useState(false);
+  const [processingTool, setProcessingTool] = useState<StudioToolId | null>(null);
   const [exportedFileName, setExportedFileName] = useState('session.txt');
+  const [selectedStyle, setSelectedStyle] = useState<TextStyle>('default');
   const [selectedAIAgents, setSelectedAIAgents] = useState<{ expertise: AIAgentExpertise[], domains: AIAgentDomain[] }>({ expertise: [], domains: [] });
   const [insightsSectionState, setInsightsSectionState] = useState<InsightsSectionState>({ summary: true, actionItems: true, keyTopics: true, textAnalysis: true, textEditor: true, aiChat: true });
-  const [activeInsightsSection, setActiveInsightsSection] = useState<keyof AnalysisResult | null>(null);
   
   const chatWindowRef = useRef<HTMLDivElement>(null);
   const { sessions, saveSession, deleteSession, getSessionAudio, updateSession } = useSessionHistory();
   const lang = settings.language as Language;
   
-  const transcriptionSource = sessionState.sources.find(s => s.type === 'transcription');
-  const messages = (transcriptionSource?.content as Message[]) || [];
+  const messages = historyState;
 
   // Transcription hook setup
   const onFinalTranscript = useCallback((transcript: string) => {
@@ -123,21 +128,35 @@ const App: React.FC = () => {
           id: `msg-${Date.now()}`,
           text: transcript,
           timestamp: audioRef.current?.currentTime ?? 0,
-          sender: newSpeaker,
-          isClone: false,
+          sender: newSpeaker
       };
       setHistoryState(currentMessages => [...currentMessages, newMessage]);
   }, [currentSpeaker, isPushToTalkActive, setHistoryState]);
 
   const onRecordingComplete = useCallback((audioBlob: Blob | null) => {
     setLoadedAudio(audioBlob);
+    
+    // Create transcription source if it doesn't exist
     setSessionState(produce(draft => {
-      const transcription = draft.sources.find(s => s.type === 'transcription');
-      if(transcription) transcription.name = draft.name;
-      draft.hasAudio = !!audioBlob;
+        let transcription = draft.sources.find(s => s.type === 'transcription');
+        if (!transcription) {
+            transcription = { id: `source-transcription-${draft.id}`, name: 'Live Transcription', type: 'transcription', content: [] };
+            draft.sources.push(transcription);
+        }
+        transcription.content = historyState;
+        draft.hasAudio = !!audioBlob;
     }));
-    setShowSessionNameModal(true);
-  }, []);
+
+    saveSession({ ...sessionState, sources: produce(sessionState.sources, draft => {
+        let transcription = draft.find(s => s.type === 'transcription');
+        if (!transcription) {
+            transcription = { id: `source-transcription-${sessionState.id}`, name: 'Live Transcription', type: 'transcription', content: [] };
+            draft.push(transcription);
+        }
+        transcription.content = historyState;
+    }) }, audioBlob);
+
+  }, [sessionState, historyState, saveSession]);
 
   const { isListening, interimTranscript, startListening, stopListening, isSpeechRecognitionSupported, restartListening } = useTranscription({
       lang,
@@ -150,20 +169,14 @@ const App: React.FC = () => {
     localStorage.setItem('voiceInkSettings', JSON.stringify(settings));
     document.body.className = `theme-${settings.theme}`;
   }, [settings]);
-
-  useEffect(() => {
-      if (transcriptionSource) {
-          const newContent = historyState;
-          setSessionState(produce(draft => {
-              const source = draft.sources.find(s => s.type === 'transcription');
-              if (source) source.content = newContent;
-          }));
-      }
-  }, [historyState, transcriptionSource]);
   
-  const startNewSession = (startRecording = false) => {
+  const startNewSession = (name: string, profileId: SessionProfileId, startRecording = false) => {
         const newSession = getInitialSession();
+        newSession.name = name;
+        newSession.profileId = profileId;
         newSession.settings = settings;
+        newSession.activeTools = profiles[profileId].tools;
+        
         setSessionState(newSession);
         resetHistory([]);
         setLoadedAudio(null);
@@ -183,12 +196,15 @@ const App: React.FC = () => {
             setMediaStream(stream);
             setIsRecording(true);
             setIsPaused(false);
-            if (!transcriptionSource) {
+            
+            // Ensure transcription source exists
+            if (!sessionState.sources.some(s => s.type === 'transcription')) {
                  setSessionState(produce(draft => {
-                     const newSource: Source = { id: `source-${Date.now()}`, name: 'Live Transcription', type: 'transcription', content: [], isSelected: true };
+                     const newSource: Source = { id: `source-transcription-${draft.id}`, name: 'Live Transcription', type: 'transcription', content: [] };
                      draft.sources.push(newSource);
-                     draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
-                     resetHistory([]);
+                     if (!draft.selectedSourceIds?.includes(newSource.id)) {
+                         draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
+                     }
                  }));
             }
         } catch (err) {
@@ -211,42 +227,30 @@ const App: React.FC = () => {
         setMediaStream(null);
     };
 
-    const handleSaveSession = async (name: string) => {
-        const finalSession = produce(sessionState, draft => {
-            draft.name = name;
-        });
-        await saveSession(finalSession, loadedAudio);
-        setShowSessionNameModal(false);
-    };
-
     const handleLoadSession = async (session: Session) => {
         const audioBlob = await getSessionAudio(session.id);
         const transcription = session.sources.find(s => s.type === 'transcription');
+        const transcriptionMessages = (transcription?.content as Message[]) || [];
+
         setSessionState(session);
-        resetHistory(transcription?.content as Message[] || []);
+        resetHistory(transcriptionMessages);
         setLoadedAudio(audioBlob);
         setShowHistoryModal(false);
     };
 
+    // Text selection handler
     useEffect(() => {
         const handleMouseUp = () => {
+            if (editingMessageId) return;
             const selection = window.getSelection();
             const selectedText = selection?.toString().trim();
-            if (selectedText && !editingMessage) {
+            if (selectedText) {
                 const range = selection?.getRangeAt(0);
                 const container = range?.commonAncestorContainer;
                 const messageElement = (container?.nodeType === Node.ELEMENT_NODE ? (container as Element) : container?.parentElement)?.closest('[data-message-id]');
                 const messageId = messageElement?.getAttribute('data-message-id');
-                // FIX: Added a check to ensure that the contextual action bar (for splitting messages)
-                // only appears for user or interlocutor messages, not for AI assistant messages,
-                // which resolves a downstream type error.
                 if (messageId) {
-                    const message = messages.find(m => m.id === messageId);
-                    if (message && message.sender !== 'assistant') {
-                        setSelectionContext({ messageId, text: selectedText });
-                    }
-                } else {
-                    setSelectionContext(null);
+                    setSelectionContext({ messageId, text: selectedText });
                 }
             } else {
                 setSelectionContext(null);
@@ -254,7 +258,7 @@ const App: React.FC = () => {
         };
         document.addEventListener('mouseup', handleMouseUp);
         return () => document.removeEventListener('mouseup', handleMouseUp);
-    }, [editingMessage, messages]);
+    }, [editingMessageId]);
 
     const handleAddSource = useCallback(async (file: File | null, url: string) => {
         if (!geminiApiKey) {
@@ -299,32 +303,17 @@ const App: React.FC = () => {
                 throw new Error(errorData.error || 'Server error');
             }
             const data = await response.json();
-            
-            const isTranscription = sourceType === 'audio';
             const newSource: Source = {
                 id: `source-${Date.now()}`,
                 name: sourceName,
-                type: isTranscription ? 'transcription' : sourceType as SourceType,
+                type: sourceType as SourceType,
                 content: data.content,
                 isSelected: true
             };
-            
             setSessionState(produce(draft => {
-                if(isTranscription) {
-                    // Replace existing transcription if one exists
-                    const existingIndex = draft.sources.findIndex(s => s.type === 'transcription');
-                    if (existingIndex !== -1) {
-                         draft.sources[existingIndex] = newSource;
-                    } else {
-                         draft.sources.push(newSource);
-                    }
-                    resetHistory(data.content);
-                } else {
-                    draft.sources.push(newSource);
-                }
+                draft.sources.push(newSource);
                 draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
             }));
-            
         } catch (error) {
             console.error('Error processing source:', error);
             alert(t('sourceProcessingError', lang));
@@ -333,17 +322,34 @@ const App: React.FC = () => {
         }
     }, [geminiApiKey, lang]);
     
-    const handleToggleSourceSelection = (sourceId: string, isSelectAll = false, selectAllState = false) => {
+    const handleToggleSourceSelection = (sourceId: string) => {
         setSessionState(produce(draft => {
-            if (isSelectAll) {
-                 draft.selectedSourceIds = selectAllState ? draft.sources.map(s => s.id) : [];
+            const currentSelected = draft.selectedSourceIds || [];
+            if (currentSelected.includes(sourceId)) {
+                draft.selectedSourceIds = currentSelected.filter(id => id !== sourceId);
             } else {
-                const currentSelected = draft.selectedSourceIds || [];
-                if (currentSelected.includes(sourceId)) {
-                    draft.selectedSourceIds = currentSelected.filter(id => id !== sourceId);
-                } else {
-                    draft.selectedSourceIds = [...currentSelected, sourceId];
-                }
+                draft.selectedSourceIds = [...currentSelected, sourceId];
+            }
+        }));
+    };
+
+    const handleToggleSelectAllSources = () => {
+        setSessionState(produce(draft => {
+            const allSourceIds = draft.sources.map(s => s.id);
+            const currentSelected = draft.selectedSourceIds || [];
+            if (currentSelected.length === allSourceIds.length) {
+                draft.selectedSourceIds = [];
+            } else {
+                draft.selectedSourceIds = allSourceIds;
+            }
+        }));
+    };
+
+    const handleDeleteSource = (sourceId: string) => {
+        setSessionState(produce(draft => {
+            draft.sources = draft.sources.filter(s => s.id !== sourceId);
+            if (draft.selectedSourceIds) {
+                draft.selectedSourceIds = draft.selectedSourceIds.filter(id => id !== sourceId);
             }
         }));
     };
@@ -352,106 +358,199 @@ const App: React.FC = () => {
         const selectedSources = sessionState.sources.filter(s => sessionState.selectedSourceIds?.includes(s.id));
         return selectedSources.map(source => {
             let contentString = '';
-            if (source.type === 'transcription' && Array.isArray(source.content)) {
+            if (source.type === 'transcription') {
+                 contentString = historyState.map(msg => `${settings[msg.sender as 'user' | 'interlocutor'].initial}: ${msg.text}`).join('\n');
+            } else if (Array.isArray(source.content)) {
                 contentString = source.content.map(msg => `${settings[msg.sender as 'user' | 'interlocutor'].initial}: ${msg.text}`).join('\n');
             } else {
-                contentString = source.content as string;
+                contentString = source.content;
             }
             return `--- Source: ${source.name} (${source.type}) ---\n${contentString}`;
         }).join('\n\n');
-    }, [sessionState.sources, sessionState.selectedSourceIds, settings]);
-
-    const addAiMessageToChat = (generatedBy: keyof AnalysisResult, text: string) => {
-        const newMessage: Message = {
-            id: `msg-${Date.now()}`,
-            text,
-            timestamp: 0,
-            sender: 'assistant',
-            generatedBy,
-        };
-        setHistoryState(current => [...current, newMessage]);
-    };
+    }, [sessionState.sources, sessionState.selectedSourceIds, settings, historyState]);
     
-    const handleAnalysis = useCallback(async (
-        type: 'summary' | 'actionItems' | 'keyTopics' | 'entities',
-        apiCall: (apiKey: string, context: string, lang: Language) => Promise<any>
-    ) => {
-        if (!geminiApiKey) { setShowApiKeyModal(true); return; }
-        
-        const context = buildAIContext();
-        if (!context.trim()) return;
+    const handleSplitMessage = () => {
+        if (!selectionContext) return;
+        const { messageId, text: selectedText } = selectionContext;
 
-        setIsProcessing(produce(draft => { (draft as any)[type] = true; }));
-        try {
-            const result = await apiCall(geminiApiKey, context, lang);
-            setSessionState(produce(draft => {
-                if (!draft.analysisResult) draft.analysisResult = { summary: '', actionItems: [], keyTopics: [] };
-                (draft.analysisResult as any)[type] = result;
-            }));
+        setHistoryState(currentMessages => {
+            const msgIndex = currentMessages.findIndex(m => m.id === messageId);
+            if (msgIndex === -1) return currentMessages;
 
-            if(type === 'summary') addAiMessageToChat('summary', result);
-            if(type === 'actionItems') addAiMessageToChat('actionItems', result.map((item: ActionItem) => `- ${item.task}`).join('\n'));
-            if(type === 'keyTopics') addAiMessageToChat('keyTopics', result.join(', '));
+            const originalMessage = currentMessages[msgIndex];
+            const selectionStartIndex = originalMessage.text.indexOf(selectedText);
+            if (selectionStartIndex === -1) return currentMessages;
             
-        } catch (e) {
-            alert(t('aiError', lang));
-        } finally {
-            setIsProcessing(produce(draft => { (draft as any)[type] = false; }));
-        }
-    }, [geminiApiKey, lang, buildAIContext]);
+            const part1 = originalMessage.text.substring(0, selectionStartIndex).trim();
+            const part2 = originalMessage.text.substring(selectionStartIndex).trim();
 
-    const handleGenerateSummary = () => handleAnalysis('summary', getSummary);
-    const handleExtractActionItems = () => handleAnalysis('actionItems', getActionItems);
-    const handleExtractKeyTopics = () => handleAnalysis('keyTopics', getKeyTopics);
-    const handleExtractEntities = () => handleAnalysis('entities', extractEntities);
-    
+            const updatedMessages = [...currentMessages];
+            if (part1) {
+                updatedMessages[msgIndex] = { ...originalMessage, text: part1 };
+                const newMessage: Message = {
+                    id: `msg-${Date.now()}`,
+                    text: part2,
+                    timestamp: originalMessage.timestamp, // Keep same timestamp for now
+                    sender: originalMessage.sender === 'user' ? 'interlocutor' : 'user',
+                };
+                updatedMessages.splice(msgIndex + 1, 0, newMessage);
+            } else {
+                 updatedMessages[msgIndex] = { ...originalMessage, sender: originalMessage.sender === 'user' ? 'interlocutor' : 'user' };
+            }
+            return updatedMessages;
+        });
+        setSelectionContext(null);
+    };
+
+    const handleSpeakerChangeOnSelection = (newSpeaker: 'user' | 'interlocutor') => {
+        if (!selectionContext) return;
+        setHistoryState(produce(draft => {
+            const msg = draft.find(m => m.id === selectionContext.messageId);
+            if (msg) msg.sender = newSpeaker;
+        }));
+        setSelectionContext(null);
+    };
+
+    const handleDeleteMessageOnSelection = () => {
+        if (!selectionContext) return;
+         setHistoryState(produce(draft => {
+            const index = draft.findIndex(m => m.id === selectionContext.messageId);
+            if (index > 0) {
+                draft[index - 1].text += ' ' + draft[index].text;
+                draft.splice(index, 1);
+            } else if (index === 0 && draft.length > 1) {
+                 draft.splice(index, 1);
+            }
+        }));
+        setSelectionContext(null);
+    };
+
+    const handleEditMessage = () => {
+        if (!selectionContext) return;
+        setEditingMessageId(selectionContext.messageId);
+        setSelectionContext(null);
+    };
+
     const handleAskAIAgent = async (prompt: string) => {
         if (!geminiApiKey) { setShowApiKeyModal(true); return; }
         
-        const currentChatHistory = sessionState.analysisResult?.aiChatHistory || [];
-        const newHistory: AIChatMessage[] = [...currentChatHistory, { role: 'user', parts: [{ text: prompt }] }];
-        
-        setSessionState(produce(draft => {
-            if (!draft.analysisResult) draft.analysisResult = { summary: '', actionItems: [], keyTopics: [] };
-            draft.analysisResult.aiChatHistory = newHistory;
-        }));
-        
+        const userMessage: Message = {
+            id: `msg-${Date.now()}`,
+            text: prompt,
+            timestamp: -1, // Special flag for non-transcription chat messages
+            sender: 'user',
+        };
+        setHistoryState(current => [...current, userMessage]);
+
         setIsProcessing(produce(draft => { draft.agent = true; }));
         try {
             const context = buildAIContext();
-            const responseText = await getAgentResponse(geminiApiKey, context, selectedAIAgents, lang, newHistory);
             
-            const newAiMessage: Message = {
-                id: `msg-${Date.now()}`,
-                text: responseText,
-                timestamp: 0,
-                sender: 'assistant',
-                generatedBy: 'aiChatHistory',
-            };
+            const aiChatHistory: AIChatMessage[] = historyState
+                .filter(m => m.timestamp === -1) // only chat messages
+                .map(m => ({
+                    role: m.sender === 'user' ? 'user' : 'model',
+                    parts: [{ text: m.text }],
+                }));
+            aiChatHistory.push({ role: 'user', parts: [{ text: prompt }] });
 
-            setHistoryState(current => [...current, newAiMessage]);
+            const responseText = await getAgentResponse(geminiApiKey, context, selectedAIAgents, lang, aiChatHistory);
             
-            setSessionState(produce(draft => {
-                if(draft.analysisResult) {
-                     draft.analysisResult.aiChatHistory = [...newHistory, { role: 'model', parts: [{ text: responseText }] }];
-                }
-            }));
+            const assistantMessage: Message = {
+                id: `msg-${Date.now() + 1}`,
+                text: responseText,
+                timestamp: -1,
+                sender: 'assistant',
+            };
+            setHistoryState(current => [...current, assistantMessage]);
+
         } catch (e) {
             alert(t('aiError', lang));
-            setSessionState(produce(draft => {
-                if(draft.analysisResult) draft.analysisResult.aiChatHistory = currentChatHistory;
-            }));
+            setHistoryState(current => current.filter(m => m.id !== userMessage.id)); // Rollback user message on error
         } finally {
             setIsProcessing(produce(draft => { draft.agent = false; }));
         }
     };
     
-    const handleClearAnalysis = () => {
-        setSessionState(produce(draft => {
-            draft.analysisResult = null;
-        }));
-    };
+    const handleTriggerTool = useCallback(async (toolId: StudioToolId) => {
+        if (!geminiApiKey) {
+            setShowApiKeyModal(true);
+            return;
+        }
+        const context = buildAIContext();
+        if (!context.trim()) {
+            alert("Please select at least one source for analysis.");
+            return;
+        }
 
+        let apiCall: ((...args: any[]) => Promise<string>) | null = null;
+        let noteType = toolId;
+        let noteTitleKey: keyof typeof translations['en'] = 'note';
+        let icon;
+
+        switch(toolId) {
+            case 'emotionAnalysis':
+                apiCall = (apiKey, context, lang) => getEmotionAnalysis(apiKey, context, lang);
+                noteTitleKey = 'toolEmotionAnalysis';
+                break;
+            case 'tonalityAnalysis':
+                apiCall = (apiKey, context, lang) => getTonalityAnalysis(apiKey, context, lang);
+                noteTitleKey = 'toolTonalityAnalysis';
+                break;
+            case 'textStyle':
+                const style = sessionState.toolSettings?.textStyle;
+                if (style) {
+                    apiCall = (apiKey, context, lang) => getStyledText(apiKey, context, style, lang);
+                    noteTitleKey = 'toolTextStyle';
+                }
+                break;
+        }
+
+        if (apiCall) {
+            setProcessingTool(toolId);
+            try {
+                const result = await apiCall(geminiApiKey, context, lang);
+                const tool = studioTools[toolId];
+                handleSaveToNote(t(noteTitleKey, lang), result, noteType, tool?.icon);
+            } catch (e) {
+                alert(t('aiError', lang));
+            } finally {
+                setProcessingTool(null);
+            }
+        } else {
+            console.warn(`Tool ${toolId} is not yet implemented.`);
+        }
+    }, [geminiApiKey, lang, buildAIContext, sessionState.toolSettings]);
+
+    const handleGenerateSourceGuide = async (sourceId: string) => {
+        if (!geminiApiKey) {
+          setShowApiKeyModal(true);
+          return;
+        }
+        const source = sessionState.sources.find(s => s.id === sourceId);
+        if (!source || source.guide) return;
+    
+        setIsProcessingGuide(true);
+        try {
+          const content = Array.isArray(source.content)
+            ? source.content.map(m => m.text).join('\n')
+            : source.content;
+          
+          const guide = await getSourceGuide(geminiApiKey, content, lang);
+          
+          setSessionState(produce(draft => {
+            const targetSource = draft.sources.find(s => s.id === sourceId);
+            if (targetSource) {
+              targetSource.guide = guide;
+            }
+          }));
+        } catch (e) {
+          alert(t('aiError', lang));
+        } finally {
+          setIsProcessingGuide(false);
+        }
+    };
+    
     const handleConvertToSource = (name: string, content: string) => {
         const newSource: Source = {
             id: `source-${Date.now()}`,
@@ -466,9 +565,106 @@ const App: React.FC = () => {
         }));
     };
     
+    const handleConvertNoteToSource = (noteId: string) => {
+        const note = sessionState.notes?.find(n => n.id === noteId);
+        if (!note) return;
+        handleConvertToSource(note.title, note.content);
+    };
+
+    const handleConvertAllNotesToSource = () => {
+        if (!sessionState.notes || sessionState.notes.length === 0) return;
+        const combinedContent = sessionState.notes.map(note => `--- Note: ${note.title} ---\n${note.content}`).join('\n\n');
+        const newSourceName = `${t('allNotes', lang)} - ${new Date().toLocaleDateString()}`;
+        handleConvertToSource(newSourceName, combinedContent);
+    };
+
+    const handleDeleteNote = (noteId: string) => {
+        setSessionState(produce(draft => {
+            if (draft.notes) {
+                draft.notes = draft.notes.filter(n => n.id !== noteId);
+            }
+        }));
+    };
+
+    const handleRenameNote = (noteId: string, newTitle: string) => {
+        setSessionState(produce(draft => {
+            if (draft.notes) {
+                const note = draft.notes.find(n => n.id === noteId);
+                if (note) {
+                    note.title = newTitle;
+                }
+            }
+        }));
+    };
+
+    const handleAddNewNote = (): string => {
+        const newNote: Note = {
+          id: `note-${Date.now()}`,
+          title: t('newNote', lang),
+          content: '',
+          type: 'manual', // A new type for user-created notes
+          time: new Date().toISOString(),
+        };
+        let newNoteId = '';
+        setSessionState(produce(draft => {
+          if (!draft.notes) {
+            draft.notes = [];
+          }
+          draft.notes.push(newNote);
+          newNoteId = newNote.id;
+        }));
+        return newNoteId;
+    };
+    
+    const handleUpdateNoteContent = (noteId: string, newContent: string) => {
+        setSessionState(produce(draft => {
+          const note = draft.notes?.find(n => n.id === noteId);
+          if (note) {
+            note.content = newContent;
+          }
+        }));
+    };
+
+    const handleSaveToNote = (title: string, content: string, type: string, icon?: React.FC) => {
+        const newNote: Note = {
+            id: `note-${Date.now()}`,
+            title,
+            content,
+            type,
+            time: new Date().toISOString(),
+            icon: icon,
+        };
+        setSessionState(produce(draft => {
+            if (!draft.notes) {
+                draft.notes = [];
+            }
+            draft.notes.push(newNote);
+        }));
+    };
+
+    const handleUpdateActiveTools = (newTools: StudioToolId[]) => {
+        setSessionState(produce(draft => {
+            draft.activeTools = newTools;
+        }));
+    };
+
+    const handleUpdateToolSettings = (toolId: StudioToolId, settings: any) => {
+        setSessionState(produce(draft => {
+            if (!draft.toolSettings) {
+                draft.toolSettings = {};
+            }
+            (draft.toolSettings as any)[toolId] = settings;
+        }));
+    };
+    
     const handleClear = () => {
         if(window.confirm(t('clearChatConfirmation', lang))) {
-            startNewSession(false);
+            const newSession = getInitialSession();
+            newSession.settings = settings;
+            setSessionState(newSession);
+            resetHistory([]);
+            setLoadedAudio(null);
+            setPlaybackTime(0);
         }
     };
 
@@ -476,44 +672,21 @@ const App: React.FC = () => {
     <div className={`theme-${settings.theme} bg-[var(--bg-main)] text-[var(--text-primary)] h-screen w-screen flex flex-col`}>
       <div className="flex flex-grow min-h-0">
         <SourcesPanel
-          isOpen={showSourcesPanel}
-          sources={sessionState.sources}
-          selectedSourceIds={sessionState.selectedSourceIds || []}
-          onAddSource={() => setShowAddSourceModal(true)}
-          onRemoveSource={(sourceId) => {
-              setSessionState(produce(draft => {
-                  draft.sources = draft.sources.filter(s => s.id !== sourceId);
-                  draft.selectedSourceIds = draft.selectedSourceIds?.filter(id => id !== sourceId);
-              }));
-          }}
-          onToggleSelection={handleToggleSourceSelection}
-          onRename={setSourceToRename}
-          onView={setSourceToView}
-          onSendToChat={(sourceId) => {
-              const source = sessionState.sources.find(s => s.id === sourceId);
-              if (source) {
-                  const newSource: Source = produce(source, draft => {
-                      draft.id = `source-${Date.now()}`;
-                      draft.isClone = true;
-                      draft.originId = source.id;
-                  });
-                  const newMessage: Message = {
-                      id: `msg-${Date.now()}`,
-                      text: typeof newSource.content === 'string' ? newSource.content : '',
-                      timestamp: 0,
-                      sender: 'user',
-                      isClone: true,
-                      relatedSourceIds: [newSource.id]
-                  };
-                  setSessionState(produce(draft => {
-                      draft.sources.push(newSource);
-                  }));
-                  setHistoryState(current => [...current, newMessage]);
-              }
-          }}
-          lang={lang}
+            isCollapsed={isSourcesPanelCollapsed}
+            onToggleCollapse={() => setIsSourcesPanelCollapsed(p => !p)}
+            sources={sessionState.sources}
+            selectedSourceIds={sessionState.selectedSourceIds || []}
+            onToggleSource={handleToggleSourceSelection}
+            onToggleSelectAll={handleToggleSelectAllSources}
+            onAddSourceClick={() => setShowAddSourceModal(true)}
+            onSearchClick={() => setShowSearchSourcesModal(true)}
+            onGenerateGuide={handleGenerateSourceGuide}
+            isProcessingGuide={isProcessingGuide}
+            onRenameSource={setSourceToRename}
+            onDeleteSource={handleDeleteSource}
+            lang={lang}
         />
-        <main className={`flex-grow flex flex-col min-w-0 relative z-20 bg-[var(--bg-main)] transition-all duration-300`}>
+        <main className={`flex-grow flex flex-col min-w-0 bg-slate-900`}>
           <Header
             onExport={() => setShowExportModal(true)}
             onClear={handleClear}
@@ -524,123 +697,127 @@ const App: React.FC = () => {
             canUndo={canUndo}
             canRedo={canRedo}
             onHelpClick={() => introJs().start()}
-            onToggleSources={() => setShowSourcesPanel(p => !p)}
             lang={lang}
-            isEditing={!!editingMessage}
+            isEditing={!!editingMessageId}
           />
-          {editingMessage && <TextEditorToolbar messageId={editingMessage.id} />}
+          {selectionContext && (
+            <TextEditorToolbar
+              selection={selectionContext}
+              onClose={() => setSelectionContext(null)}
+              onSplit={handleSplitMessage}
+              onSpeakerChange={handleSpeakerChangeOnSelection}
+              onDelete={handleDeleteMessageOnSelection}
+              onEdit={handleEditMessage}
+              lang={lang}
+            />
+          )}
           {sessionState.sources.length > 0 && <SessionBar sessionName={sessionState.name} />}
           <ChatWindow
             ref={chatWindowRef}
             messages={messages}
             interimTranscript={interimTranscript}
-            currentSpeaker={currentSpeaker}
             isRecording={isRecording}
-            isPaused={isPaused}
             isProcessingFile={isProcessingSource}
             settings={settings}
+            editingMessageId={editingMessageId}
             onUpdateMessage={(id, text) => {
                 setHistoryState(produce(draft => {
                     const msg = draft.find(m => m.id === id);
                     if (msg) msg.text = text;
                 }));
-                setEditingMessage(null);
+                setEditingMessageId(null);
             }}
-            onChangeSpeaker={(id) => {
-                setHistoryState(produce(draft => {
-                    const msg = draft.find(m => m.id === id);
-                    if (msg) msg.sender = msg.sender === 'user' ? 'interlocutor' : 'user';
-                }));
-            }}
-            onDeleteMessage={(id) => {
-                 setHistoryState(produce(draft => {
-                    const index = draft.findIndex(m => m.id === id);
-                    if (index > 0) {
-                        draft[index - 1].text += ' ' + draft[index].text;
-                        draft.splice(index, 1);
-                    } else if (index === 0 && draft.length > 1) {
-                         draft.splice(index, 1);
-                    }
-                }));
-            }}
-            onStartEdit={(message) => {
-                setEditingMessage(message);
-                setSelectionContext(null);
-            }}
-            onConvertToSource={handleConvertToSource}
-            onMessageClick={(message) => {
-                if (message.generatedBy) {
-                    setActiveInsightsSection(message.generatedBy);
-                }
-            }}
+            onCancelEdit={() => setEditingMessageId(null)}
             lang={lang}
             playbackTime={playbackTime}
             onSeekAudio={(time) => { if(audioRef.current) audioRef.current.currentTime = time; }}
+            onSaveToNote={handleSaveToNote}
             entities={sessionState.analysisResult?.entities}
           />
-          <AudioPlayer
-            ref={audioRef}
-            blob={loadedAudio}
-            onTimeUpdate={setPlaybackTime}
-            isVisible={sessionState.sources.some(s => (s.type === 'audio' || s.type === 'transcription') && sessionState.selectedSourceIds?.includes(s.id))}
-          />
-          <MainAIChatInput 
-            onAskAIAgent={handleAskAIAgent}
-            isProcessing={isProcessing.agent}
-            lang={lang}
-          />
-          <TranscriptionControls
-            isRecording={isRecording}
-            isPaused={isPaused}
-            isPushToTalkActive={isPushToTalkActive}
-            isAIAssistantOpen={showInsightsPanel}
-            onStartClick={() => {
-                if (sessionState.sources.length > 0 && transcriptionSource) {
-                    if (window.confirm(t('startNewSessionConfirmation', lang))) {
-                        startNewSession(true);
+          <div className="flex-shrink-0">
+            <AudioPlayer
+                ref={audioRef}
+                blob={loadedAudio}
+                onTimeUpdate={setPlaybackTime}
+                isVisible={sessionState.hasAudio}
+            />
+            <MainAIChatInput 
+                onAskAIAgent={handleAskAIAgent}
+                isProcessing={isProcessing.agent}
+                lang={lang}
+                onAgentConfigClick={() => setShowAgentConfigModal(true)}
+            />
+            <TranscriptionControls
+                isRecording={isRecording}
+                isPaused={isPaused}
+                isPushToTalkActive={isPushToTalkActive}
+                isAIAssistantOpen={!isStudioPanelCollapsed}
+                onStartClick={() => {
+                    if (sessionState.sources.length > 0 && historyState.length > 0) {
+                        if (window.confirm(t('startNewSessionConfirmation', lang))) {
+                            setShowNewSessionModal(true);
+                        }
+                    } else {
+                        setShowNewSessionModal(true);
                     }
-                } else {
-                    startNewSession(true);
-                }
-            }}
-            onStopClick={handleStop}
-            onPauseClick={() => {
-                if (isPaused) restartListening();
-                else restartListening();
-                setIsPaused(!isPaused);
-            }}
-            onMicToggle={() => setIsPushToTalkActive(p => !p)}
-            onAIToggle={() => setShowInsightsPanel(p => !p)}
-            lang={lang}
-          />
+                }}
+                onStopClick={handleStop}
+                onPauseClick={() => {
+                    if (isPaused) restartListening();
+                    else restartListening();
+                    setIsPaused(!isPaused);
+                }}
+                onMicToggle={() => setIsPushToTalkActive(p => !p)}
+                onAIToggle={() => setIsStudioPanelCollapsed(p => !p)}
+                lang={lang}
+            />
+          </div>
         </main>
-        {/* FIX: Removed invalid props 'selectedStyle', 'onStyleChange', and several 'onExport...' props from InsightsPanel component call to align with its defined props interface. */}
-        <InsightsPanel
-            isOpen={showInsightsPanel}
-            isExpanded={isInsightsPanelExpanded}
-            onToggleExpand={() => setIsInsightsPanelExpanded(p => !p)}
-            onClose={() => setShowInsightsPanel(false)}
+        <StudioPanel
+            isCollapsed={isStudioPanelCollapsed}
+            onToggleCollapse={() => setIsStudioPanelCollapsed(p => !p)}
             isSessionLoaded={sessionState.sources.length > 0}
-            analysisResult={sessionState.analysisResult}
-            isProcessing={isProcessing}
+            session={sessionState}
+            notes={sessionState.notes || []}
+            onDeleteNote={handleDeleteNote}
+            onConvertToSource={handleConvertNoteToSource}
+            onConvertAllNotesToSource={handleConvertAllNotesToSource}
+            onRenameNote={handleRenameNote}
+            onAddNewNote={handleAddNewNote}
+            onUpdateNoteContent={handleUpdateNoteContent}
+            onConfigureToolsClick={() => setShowStudioConfigModal(true)}
+            onTriggerTool={handleTriggerTool}
+            processingTool={processingTool}
+            toolSettings={sessionState.toolSettings}
+            onUpdateToolSettings={handleUpdateToolSettings}
             lang={lang}
-            selectedAIAgents={selectedAIAgents}
-            onShowAgentConfig={() => setShowAgentConfigModal(true)}
-            sectionState={insightsSectionState}
-            onToggleSection={(section) => setInsightsSectionState(produce(draft => { draft[section] = !draft[section]; }))}
-            onGenerateSummary={handleGenerateSummary}
-            onExtractActionItems={handleExtractActionItems}
-            onExtractTopics={handleExtractKeyTopics}
-            onExtractEntities={handleExtractEntities}
-            onClearAnalysis={handleClearAnalysis}
-            onConvertToSource={handleConvertToSource}
-            activeSection={activeInsightsSection}
         />
       </div>
 
-      {/* All Modals */}
-      {showAddSourceModal && <AddSourceModal onClose={() => setShowAddSourceModal(false)} onAdd={handleAddSource} lang={lang} />}
-      {sourceToView && <ViewSourceModal source={sourceToView} onClose={() => setSourceToView(null)} lang={lang} />}
+      {showStudioConfigModal && <StudioConfigModal 
+        onClose={() => setShowStudioConfigModal(false)}
+        onSave={handleUpdateActiveTools}
+        activeTools={sessionState.activeTools || []}
+        lang={lang}
+      />}
+      {showAddSourceModal && <AddSourceModal 
+        onClose={() => setShowAddSourceModal(false)} 
+        onAdd={handleAddSource} 
+        lang={lang} 
+        onSearchClick={() => {
+            setShowAddSourceModal(false);
+            setShowSearchSourcesModal(true);
+        }}
+        sourcesCount={sessionState.sources.length}
+      />}
+      {showSearchSourcesModal && <SearchSourcesModal 
+        onClose={() => setShowSearchSourcesModal(false)}
+        onSearch={(query, searchIn) => {
+          console.log("Searching for:", query, "in", searchIn);
+          setShowSearchSourcesModal(false);
+        }}
+        lang={lang}
+      />}
       {sourceToRename && <RenameSourceModal source={sourceToRename} onClose={() => setSourceToRename(null)} onSave={(id, name) => {
           setSessionState(produce(draft => {
               const source = draft.sources.find(s => s.id === id);
@@ -648,9 +825,18 @@ const App: React.FC = () => {
           }));
           setSourceToRename(null);
       }} lang={lang} />}
-      {showAgentConfigModal && <AgentConfigModal initialSelectedAgents={selectedAIAgents} onClose={() => setShowAgentConfigModal(false)} onSave={setSelectedAIAgents} lang={lang} />}
+      {showAgentConfigModal && <AgentConfigModal 
+        initialSelectedAgents={selectedAIAgents} 
+        onClose={() => setShowAgentConfigModal(false)} 
+        onSave={setSelectedAIAgents} 
+        lang={lang}
+        profileId={sessionState.profileId}
+      />}
       {showApiKeyModal && <ApiKeyModal onClose={() => setShowApiKeyModal(false)} onSave={(key) => { sessionStorage.setItem('geminiApiKey', key); setGeminiApiKey(key); setShowApiKeyModal(false); }} lang={lang} />}
-      {showSessionNameModal && <SessionNameModal onClose={() => setShowSessionNameModal(false)} onConfirm={handleSaveSession} lang={lang} />}
+      {showNewSessionModal && <NewSessionModal onClose={() => setShowNewSessionModal(false)} onConfirm={(name, profileId) => {
+          setShowNewSessionModal(false);
+          startNewSession(name, profileId, true);
+      }} lang={lang} />}
       {showHistoryModal && <HistoryModal sessions={sessions} onClose={() => setShowHistoryModal(false)} onLoad={handleLoadSession} onDelete={deleteSession} onSaveAudio={async (id) => {
           const blob = await getSessionAudio(id);
           if (blob) {
@@ -662,33 +848,6 @@ const App: React.FC = () => {
               URL.revokeObjectURL(url);
           }
       }} lang={lang} />}
-       {selectionContext && (
-        <ContextualActionBar
-          context={selectionContext}
-          onClear={() => setSelectionContext(null)}
-          onSplit={(messageId, text, newSpeaker) => {
-             setHistoryState(produce(draft => {
-                const msgIndex = draft.findIndex(m => m.id === messageId);
-                if (msgIndex !== -1) {
-                    const originalMsg = draft[msgIndex];
-                    const parts = originalMsg.text.split(text);
-                    originalMsg.text = parts[0].trim();
-                    
-                    const newMsg1 = { id: `msg-${Date.now()}`, text, sender: newSpeaker, timestamp: originalMsg.timestamp };
-                    const newMsg2 = { id: `msg-${Date.now()+1}`, text: parts[1].trim(), sender: originalMsg.sender as 'user' | 'interlocutor', timestamp: originalMsg.timestamp };
-                    
-                    const newMessages = [newMsg1];
-                    if (newMsg2.text) newMessages.push(newMsg2);
-                    
-                    draft.splice(msgIndex + 1, 0, ...newMessages);
-                }
-             }));
-             setSelectionContext(null);
-          }}
-          settings={settings}
-          lang={lang}
-        />
-      )}
     </div>
   );
 };

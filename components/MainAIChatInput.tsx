@@ -1,15 +1,16 @@
 
 import React, { useState } from 'react';
-import { SendIcon } from './icons';
+import { SendIcon, SparklesIcon } from './icons';
 import { t, Language } from '../utils/translations';
 
 interface MainAIChatInputProps {
   onAskAIAgent: (prompt: string) => void;
   isProcessing: boolean;
   lang: Language;
+  onAgentConfigClick: () => void;
 }
 
-export const MainAIChatInput: React.FC<MainAIChatInputProps> = ({ onAskAIAgent, isProcessing, lang }) => {
+export const MainAIChatInput: React.FC<MainAIChatInputProps> = ({ onAskAIAgent, isProcessing, lang, onAgentConfigClick }) => {
   const [prompt, setPrompt] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -21,8 +22,17 @@ export const MainAIChatInput: React.FC<MainAIChatInputProps> = ({ onAskAIAgent, 
   };
 
   return (
-    <div className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-4 border-t border-[var(--border-color)] z-20">
+    <div className="flex-shrink-0 p-4">
       <form onSubmit={handleSubmit} className="flex items-center gap-2 max-w-lg mx-auto">
+        <button
+          type="button"
+          onClick={onAgentConfigClick}
+          disabled={isProcessing}
+          className="p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          aria-label={t('configureAgent', lang)}
+        >
+            <SparklesIcon className="w-6 h-6" />
+        </button>
         <input
           type="text"
           value={prompt}
@@ -34,7 +44,7 @@ export const MainAIChatInput: React.FC<MainAIChatInputProps> = ({ onAskAIAgent, 
         <button
           type="submit"
           disabled={isProcessing || !prompt.trim()}
-          className="p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-3 bg-slate-700 hover:bg-slate-600 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <SendIcon className="w-6 h-6" />
         </button>

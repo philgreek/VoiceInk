@@ -1,6 +1,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
-import { Session, Source, Settings, AnalysisResult } from '../types';
+// FIX: Import `SessionProfileId` to correctly type the `sessionData` parameter in `saveSession`.
+import { Session, Source, Settings, AnalysisResult, SessionProfileId } from '../types';
 import { initDB } from '../utils/db';
 import { produce } from 'immer';
 
@@ -26,7 +27,8 @@ export const useSessionHistory = () => {
   }, [fetchSessions]);
 
   const saveSession = useCallback(async (
-    sessionData: { name: string; sources: Source[]; settings: Settings, hasAudio: boolean, analysisResult: AnalysisResult | null, selectedSourceIds?: string[] },
+    // FIX: Add `profileId` to the `sessionData` type to match the `Session` interface.
+    sessionData: { name: string; profileId: SessionProfileId; sources: Source[]; settings: Settings; hasAudio: boolean; analysisResult: AnalysisResult | null; selectedSourceIds?: string[]; },
     audioBlob: Blob | null
   ): Promise<Session> => {
     const db = await initDB();
@@ -61,6 +63,7 @@ export const useSessionHistory = () => {
     return newSession;
   }, [fetchSessions]);
 
+  // FIX: Replaced 'updateSessionAnalysis' with a more generic 'updateSession' to handle partial updates.
   const updateSession = useCallback(async (sessionId: string, updates: Partial<Session>): Promise<Session> => {
     const db = await initDB();
     const session = await db.get('sessions', sessionId);

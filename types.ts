@@ -1,14 +1,20 @@
+// FIX: Import React to provide types for React.FC and React.SVGProps.
+import React from 'react';
+import { translations } from './utils/translations';
+
 export interface Message {
   id: string;
   text: string;
-  timestamp: number; // Seconds from the start of the recording
+  timestamp: number; // Seconds from the start of the recording, or -1 for chat messages
   sender: 'user' | 'interlocutor' | 'assistant';
-  isClone?: boolean;
-  relatedSourceIds?: string[];
-  generatedBy?: keyof AnalysisResult;
 }
 
 export type SourceType = 'transcription' | 'audio' | 'file' | 'url';
+
+export interface SourceGuide {
+  summary: string;
+  questions: string[];
+}
 
 export interface Source {
     id: string;
@@ -16,8 +22,16 @@ export interface Source {
     type: SourceType;
     content: Message[] | string; // Message[] for transcription, string for others
     isSelected?: boolean;
-    isClone?: boolean;
-    originId?: string;
+    guide?: SourceGuide;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  type: string; // e.g., 'summary', 'flashcards'
+  time: string; // ISO date string
+  icon?: React.FC<React.SVGProps<SVGSVGElement>>;
 }
 
 export interface SpeakerProfile {
@@ -64,7 +78,6 @@ export interface AnalysisResult {
     text: string;
   };
   entities?: Entity[];
-  aiChatHistory?: AIChatMessage[];
 }
 
 export type TextStyle = 
@@ -105,7 +118,13 @@ export type AIAgentExpertise =
   | 'coach'
   | 'editor'
   | 'tutor'
-  | 'speechwriter';
+  | 'speechwriter'
+  | 'data_scientist'
+  | 'ux_researcher'
+  | 'software_developer'
+  | 'product_manager'
+  | 'strategist'
+  | 'pr_specialist';
 
 export type AIAgentDomain =
   | 'general'
@@ -126,17 +145,70 @@ export type AIAgentDomain =
   | 'journalism'
   | 'filmmaking'
   | 'constitutional_law'
-  | 'litigation';
+  | 'litigation'
+  | 'software_development'
+  | 'data_science'
+  | 'ux_ui_design'
+  | 'product_management'
+  | 'strategic_planning'
+  | 'public_relations';
+
+export interface AIAgentExpertiseItem {
+  id: AIAgentExpertise;
+  nameKey: keyof typeof translations.en;
+  category: string;
+  relatedDomains: AIAgentDomain[];
+}
+
+export interface AIAgentDomainItem {
+  id: AIAgentDomain;
+  nameKey: keyof typeof translations.en;
+  category: string;
+  relatedExpertise: AIAgentExpertise[];
+}
+
+
+export type SessionProfileId = 'pedagogical' | 'legal' | 'hr' | 'medical' | 'economic' | 'creative' | 'linguistic';
+
+export type TextStyleId = 'scientific' | 'business' | 'publicistic' | 'artistic' | 'conversational';
+
+export type StudioToolId = 'audioSummary' | 'videoSummary' | 'mindMap' | 'reports' | 'flashcards' | 'test' | 'caseBrief' | 'contractAnalysis' | 'interviewSummary' | 'candidateEval' | 'marketAnalysis' | 'financialReport' | 'scriptAnalysis' | 'brainstorm' | 'translation' | 'grammarCheck' | 'emotionAnalysis' | 'tonalityAnalysis' | 'textStyle';
+
+export interface StudioTool {
+  id: StudioToolId;
+  nameKey: keyof typeof translations.en;
+  descriptionKey: keyof typeof translations.en;
+  icon: React.FC<React.SVGProps<SVGSVGElement>>;
+  category: string;
+  isConfigurable?: boolean;
+}
+
+export interface SessionProfile {
+    id: SessionProfileId;
+    nameKey: keyof typeof translations.en;
+    icon: React.FC<React.SVGProps<SVGSVGElement>>;
+    tools: StudioToolId[];
+    recommendedExpertise: AIAgentExpertise[];
+    recommendedDomains: AIAgentDomain[];
+}
+
+export interface ToolSettings {
+    textStyle?: TextStyleId;
+}
 
 export interface Session {
   id:string;
   name: string;
+  profileId: SessionProfileId;
   sources: Source[];
+  notes?: Note[];
   settings: Settings;
   savedAt: string;
   hasAudio: boolean;
   analysisResult: AnalysisResult | null;
   selectedSourceIds?: string[];
+  activeTools?: StudioToolId[];
+  toolSettings?: ToolSettings;
 }
 
 export interface LoadedSession extends Session {

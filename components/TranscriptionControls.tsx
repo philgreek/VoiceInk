@@ -28,21 +28,23 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
   onAIToggle,
   lang,
 }) => {
-  const pushToTalkButtonClasses = isPushToTalkActive
-    ? 'bg-[var(--bg-element-hover)]'
-    : 'bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)]';
-    
   const isPttDisabled = !isRecording || isPaused;
 
   const baseButtonClasses = 'font-bold py-4 px-4 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg text-white text-xl flex items-center justify-center select-none';
   
+  const smallButtonBase = `bg-slate-800 hover:bg-slate-700`;
+
   const aiButtonClasses = isAIAssistantOpen
-    ? 'bg-[var(--accent-assistant)] text-white ring-2 ring-offset-2 ring-offset-[var(--bg-header)] ring-white'
-    : 'bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] text-white';
+    ? 'bg-[var(--accent-assistant)] text-white ring-2 ring-offset-2 ring-offset-slate-950 ring-white'
+    : `${smallButtonBase} text-white`;
+    
+  const pushToTalkButtonClasses = isPushToTalkActive
+    ? 'bg-slate-700'
+    : smallButtonBase;
 
   return (
     <div 
-      className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-4 sm:p-6 border-t border-[var(--border-color)] sticky bottom-0 z-20"
+      className="flex-shrink-0 bg-slate-950 p-4 sm:p-6 border-t border-slate-800"
     >
         <div 
           className="flex items-stretch justify-center gap-4 max-w-lg mx-auto"
@@ -51,7 +53,7 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
           <button
             onClick={onAIToggle}
             className={`${baseButtonClasses} flex-grow-0 w-20 ${aiButtonClasses}`}
-            aria-label={t('toggleAIInsights', lang)}
+            aria-label={t('toggleStudioPanel', lang)}
           >
             <SparklesIcon className="w-8 h-8"/>
           </button>
@@ -60,7 +62,7 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
             onClick={onMicToggle}
             disabled={isPttDisabled}
             className={`${baseButtonClasses} flex-grow-0 w-20 ${
-              !isPttDisabled ? pushToTalkButtonClasses : 'bg-[var(--bg-surface)] text-[var(--text-placeholder)] cursor-not-allowed'
+              !isPttDisabled ? pushToTalkButtonClasses : 'bg-slate-900 text-slate-600 cursor-not-allowed'
             }`}
             aria-label={t('toggleUserMic', lang)}
           >
@@ -70,7 +72,7 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
           {!isRecording ? (
              <button
                 onClick={onStartClick}
-                className={`${baseButtonClasses} flex-1 bg-green-600 hover:bg-green-700`}
+                className={`${baseButtonClasses} flex-1 bg-green-500 hover:bg-green-600`}
                 aria-label={t('start', lang)}
               >
                 <PlayIcon className="w-8 h-8" />
@@ -81,7 +83,7 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
                 onClick={onPauseClick}
                 className={`${baseButtonClasses} flex-1 min-w-0 ${
                     isPaused 
-                    ? 'bg-green-600 hover:bg-green-700' 
+                    ? 'bg-green-500 hover:bg-green-600' 
                     : 'bg-amber-500 hover:bg-amber-600'
                 } disabled:bg-gray-500 disabled:cursor-not-allowed`}
                 aria-label={isPaused ? t('resume', lang) : t('pause', lang)}

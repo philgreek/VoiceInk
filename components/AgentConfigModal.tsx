@@ -1,97 +1,129 @@
-
-
 import React, { useState, useMemo } from 'react';
 import { XIcon } from './icons';
-// FIX: Import `translations` object to correctly type the translation keys.
-import { t, Language, translations } from '../utils/translations';
-import { AIAgentExpertise, AIAgentDomain } from '../types';
+import { t, Language } from '../utils/translations';
+import { AIAgentExpertise, AIAgentDomain, SessionProfileId, AIAgentExpertiseItem, AIAgentDomainItem } from '../types';
+import { profiles } from '../utils/profiles';
+import { allExpertise, allDomains } from '../utils/agentConfigData';
+
 
 interface AgentConfigModalProps {
   initialSelectedAgents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] };
   onClose: () => void;
   onSave: (newAgents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] }) => void;
   lang: Language;
+  profileId: SessionProfileId;
 }
 
-// FIX: Use `keyof typeof translations.en` to correctly type the `nameKey` property.
-const allExpertise: { id: AIAgentExpertise, nameKey: keyof typeof translations.en }[] = [
-    { id: 'interviewer', nameKey: 'agentInterviewer' }, { id: 'reporter', nameKey: 'agentReporter' }, 
-    { id: 'recruiter', nameKey: 'agentRecruiter' }, { id: 'sociologist', nameKey: 'agentSociologist' }, 
-    { id: 'screenwriter', nameKey: 'agentScreenwriter' }, { id: 'translator', nameKey: 'agentTranslator' },
-    { id: 'marketing_analyst', nameKey: 'agentMarketing_analyst' }, { id: 'tech_support', nameKey: 'agentTech_support' },
-    { id: 'business_analyst', nameKey: 'agentBusiness_analyst' }, { id: 'financial_advisor', nameKey: 'agentFinancial_advisor' },
-    { id: 'project_manager', nameKey: 'agentProject_manager' }, { id: 'course_developer', nameKey: 'agentCourse_developer' },
-    { id: 'academic_researcher', nameKey: 'agentAcademic_researcher' }, { id: 'therapist', nameKey: 'agentTherapist' },
-    { id: 'legal_assistant', nameKey: 'agentLegal_assistant' }, { id: 'detective', nameKey: 'agentDetective' },
-    { id: 'chef_nutritionist', nameKey: 'agentChef_nutritionist' }, { id: 'customer_manager', nameKey: 'agentCustomer_manager' },
-    { id: 'psychologist', nameKey: 'agentPsychologist' }, { id: 'coach', nameKey: 'agentCoach' },
-    { id: 'editor', nameKey: 'agentEditor' }, { id: 'tutor', nameKey: 'agentTutor' },
-    { id: 'speechwriter', nameKey: 'agentSpeechwriter' },
-];
+type SortType = 'group' | 'alpha';
 
-// FIX: Use `keyof typeof translations.en` to correctly type the `nameKey` property.
-const allDomains: { id: AIAgentDomain, nameKey: keyof typeof translations.en }[] = [
-    { id: 'general', nameKey: 'domainGeneral' }, { id: 'technology', nameKey: 'domainTechnology' },
-    { id: 'finance', nameKey: 'domainFinance' }, { id: 'healthcare', nameKey: 'domainHealthcare' },
-    { id: 'law', nameKey: 'domainLaw' }, { id: 'education', nameKey: 'domainEducation' },
-    { id: 'art_culture', nameKey: 'domainArt_culture' }, { id: 'science', nameKey: 'domainScience' },
-    { id: 'business_management', nameKey: 'domainBusiness_management' }, { id: 'human_resources', nameKey: 'domainHuman_resources' },
-    { id: 'marketing_sales', nameKey: 'domainMarketing_sales' }, { id: 'customer_service', nameKey: 'domainCustomer_service' },
-    { id: 'psychology', nameKey: 'domainPsychology' }, { id: 'career_development', nameKey: 'domainCareer_development' },
-    { id: 'cooking_nutrition', nameKey: 'domainCooking_nutrition' }, { id: 'journalism', nameKey: 'domainJournalism' },
-    { id: 'filmmaking', nameKey: 'domainFilmmaking' }, { id: 'constitutional_law', nameKey: 'domainConstitutional_law' },
-    { id: 'litigation', nameKey: 'domainLitigation' },
-];
-
-const Column = <T extends string>({ title, items, selected, onToggle, searchTerm, onSearchChange, lang }: {
+const Column = <T extends string, I extends { id: T; nameKey: any; category: string }>({ 
+    title, 
+    items, 
+    selected, 
+    onToggle, 
+    searchTerm, 
+    sortType,
+    onSortChange,
+    onSearchChange,
+    lang, 
+    highlightedItems 
+}: {
     title: string;
-    // FIX: Use `keyof typeof translations.en` to correctly type the `nameKey` property on items.
-    items: { id: T, nameKey: keyof typeof translations.en }[];
+    items: I[];
     selected: T[];
     onToggle: (id: T) => void;
     searchTerm: string;
+    sortType: SortType;
+    onSortChange: (sortType: SortType) => void;
     onSearchChange: (value: string) => void;
     lang: Language;
+    highlightedItems: T[];
 }) => {
+
     const filteredItems = useMemo(() => 
         items.filter(item => 
-            // FIX: The type of `item.nameKey` is now correct, resolving the error.
             t(item.nameKey, lang).toLowerCase().includes(searchTerm.toLowerCase())
         ), [items, searchTerm, lang]);
 
-    const buttonClass = (id: T) => `w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
-        selected.includes(id) 
-            ? 'bg-[var(--accent-primary)] text-white' 
-            : 'bg-[var(--bg-element)] text-[var(--text-primary)] hover:bg-[var(--bg-element-hover)]'
-    }`;
+    const sortedAndGroupedItems = useMemo(() => {
+        if (sortType === 'alpha') {
+            return { 'all': filteredItems.sort((a, b) => t(a.nameKey, lang).localeCompare(t(b.nameKey, lang))) };
+        }
+        const grouped: Record<string, I[]> = {};
+        filteredItems.forEach(item => {
+            if (!grouped[item.category]) {
+                grouped[item.category] = [];
+            }
+            grouped[item.category].push(item);
+        });
+        return grouped;
+    }, [filteredItems, sortType, lang]);
+
+
+    const buttonClass = (id: T) => {
+        const isSelected = selected.includes(id);
+        const isHighlighted = highlightedItems.includes(id);
+        
+        let classes = 'w-full text-left px-3 py-2 text-sm rounded-md transition-colors ';
+        if (isSelected) {
+            classes += 'bg-[var(--accent-primary)] text-white';
+        } else if (isHighlighted) {
+            classes += 'bg-green-500/20 text-[var(--text-primary)] hover:bg-green-500/30';
+        } else {
+            classes += 'bg-[var(--bg-element)] text-[var(--text-primary)] hover:bg-[var(--bg-element-hover)]';
+        }
+        return classes;
+    };
     
     return (
         <div className="flex-1 flex flex-col gap-3 min-w-0">
-            <h3 className="font-semibold text-[var(--text-primary)]">{title}</h3>
+            <div className="flex justify-between items-center">
+                <h3 className="font-semibold text-[var(--text-primary)]">{title}</h3>
+                <div className="flex text-xs bg-[var(--bg-element)] rounded-md p-0.5">
+                    <button onClick={() => onSortChange('group')} className={`px-2 py-1 rounded ${sortType === 'group' ? 'bg-[var(--bg-surface)]' : ''}`}>{t('sortByGroup', lang)}</button>
+                    <button onClick={() => onSortChange('alpha')} className={`px-2 py-1 rounded ${sortType === 'alpha' ? 'bg-[var(--bg-surface)]' : ''}`}>{t('sortByAlphabet', lang)}</button>
+                </div>
+            </div>
             <input
                 type="text"
                 value={searchTerm}
+                // FIX: The search input was not connected to a state updater.
+                // Added onSearchChange prop and connected it to the input's onChange event.
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={`${t('search', lang)}`}
                 className="w-full bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none"
             />
-            <div className="flex-grow overflow-y-auto space-y-2 pr-2 border-r border-[var(--border-color)]">
-                {filteredItems.map(item => (
-                    <button key={item.id} onClick={() => onToggle(item.id)} className={buttonClass(item.id)}>
-                        {/* FIX: The type of `item.nameKey` is now correct, resolving the error. */}
-                        {t(item.nameKey, lang)}
-                    </button>
+            <div className="flex-grow overflow-y-auto space-y-2 pr-2">
+                {Object.entries(sortedAndGroupedItems).map(([category, items]) => (
+                    <div key={category}>
+                        {sortType === 'group' && (
+                            <h4 className="text-xs font-bold uppercase text-[var(--text-secondary)] px-3 pt-2 pb-1">
+                                {/* FIX: Corrected translation key generation for category. */}
+                                {t(category as any, lang)}
+                            </h4>
+                        )}
+                        {/* FIX: Cast `items` to `I[]` to resolve incorrect type inference to `unknown`. */}
+                        {(items as I[]).map(item => (
+                            <button key={item.id} onClick={() => onToggle(item.id)} className={buttonClass(item.id)}>
+                                {t(item.nameKey, lang)}
+                            </button>
+                        ))}
+                    </div>
                 ))}
             </div>
         </div>
     );
 }
 
-export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({ initialSelectedAgents, onClose, onSave, lang }) => {
+export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({ initialSelectedAgents, onClose, onSave, lang, profileId }) => {
     const [selectedExpertise, setSelectedExpertise] = useState<AIAgentExpertise[]>(initialSelectedAgents.expertise);
     const [selectedDomains, setSelectedDomains] = useState<AIAgentDomain[]>(initialSelectedAgents.domains);
     const [expertiseSearch, setExpertiseSearch] = useState('');
     const [domainSearch, setDomainSearch] = useState('');
+    const [expertiseSort, setExpertiseSort] = useState<SortType>('group');
+    const [domainSort, setDomainSort] = useState<SortType>('group');
+
+    const activeProfile = profiles[profileId];
 
     const handleSave = () => {
         onSave({ expertise: selectedExpertise, domains: selectedDomains.length > 0 ? selectedDomains : ['general'] });
@@ -105,6 +137,19 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({ initialSelec
     const toggleDomain = (id: AIAgentDomain) => {
         setSelectedDomains(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]);
     };
+    
+    const highlightedDomains = useMemo(() => {
+        if (selectedExpertise.length === 0) return activeProfile.recommendedDomains;
+        const related = selectedExpertise.flatMap(expId => allExpertise.find(e => e.id === expId)?.relatedDomains || []);
+        return [...new Set([...related, ...activeProfile.recommendedDomains])];
+    }, [selectedExpertise, activeProfile]);
+
+    const highlightedExpertise = useMemo(() => {
+        if (selectedDomains.length === 0) return activeProfile.recommendedExpertise;
+        const related = selectedDomains.flatMap(domId => allDomains.find(d => d.id === domId)?.relatedExpertise || []);
+        return [...new Set([...related, ...activeProfile.recommendedExpertise])];
+    }, [selectedDomains, activeProfile]);
+
 
   return (
     <div
@@ -125,23 +170,29 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({ initialSelec
         </div>
 
         <div className="flex-grow flex gap-6 min-h-0">
-            <Column
+            <Column<AIAgentExpertise, AIAgentExpertiseItem>
                 title={t('agentExpertiseTitle', lang)}
                 items={allExpertise}
                 selected={selectedExpertise}
                 onToggle={toggleExpertise}
                 searchTerm={expertiseSearch}
+                sortType={expertiseSort}
+                onSortChange={setExpertiseSort}
                 onSearchChange={setExpertiseSearch}
                 lang={lang}
+                highlightedItems={highlightedExpertise}
             />
-             <Column
+             <Column<AIAgentDomain, AIAgentDomainItem>
                 title={t('agentDomainTitle', lang)}
                 items={allDomains}
                 selected={selectedDomains}
                 onToggle={toggleDomain}
                 searchTerm={domainSearch}
+                sortType={domainSort}
+                onSortChange={setDomainSort}
                 onSearchChange={setDomainSearch}
                 lang={lang}
+                highlightedItems={highlightedDomains}
             />
         </div>
         

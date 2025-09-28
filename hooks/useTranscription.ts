@@ -87,8 +87,21 @@ export const useTranscription = ({ lang, onFinalTranscript, onRecordingComplete,
     };
     
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      if (event.error === 'no-speech') return;
-      console.error('Speech recognition error:', event.error);
+      // Ignore 'no-speech' errors, as the service will automatically restart if continuous.
+      if (event.error === 'no-speech') {
+        return;
+      }
+
+      // For network errors, we don't want to kill the process.
+      // The 'onend' handler will be called automatically, and it has logic to restart the recognition.
+      // This makes it resilient to temporary network issues.
+      if (event.error === 'network') {
+        console.warn('Speech recognition network error occurred. Will attempt to restart.');
+        return;
+      }
+
+      // For other critical errors (e.g., 'not-allowed', 'service-not-allowed'), stop listening.
+      console.error('Speech recognition critical error:', event.error);
       isListeningRef.current = false;
       setIsListening(false);
     };

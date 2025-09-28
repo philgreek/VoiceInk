@@ -1,7 +1,6 @@
 
-
 import React from 'react';
-import { DownloadIcon, TrashIcon, SettingsIcon, UndoIcon, RedoIcon, QuestionMarkCircleIcon, PanelLeftIcon } from './icons';
+import { DownloadIcon, TrashIcon, SettingsIcon, UndoIcon, RedoIcon, QuestionMarkCircleIcon } from './icons';
 import { t, Language } from '../utils/translations';
 
 interface HeaderProps {
@@ -14,26 +13,19 @@ interface HeaderProps {
   canUndo: boolean;
   canRedo: boolean;
   onHelpClick: () => void;
-  onToggleSources: () => void;
   lang: Language;
-  // FIX: Added 'isEditing' prop to allow the header to respond to the app's editing state.
   isEditing: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, onHistoryClick, onUndo, onRedo, canUndo, canRedo, onHelpClick, onToggleSources, lang, isEditing }) => {
-  const buttonClasses = "p-2 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-transparent hover:bg-[var(--bg-surface)] rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent";
+export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, onHistoryClick, onUndo, onRedo, canUndo, canRedo, onHelpClick, lang, isEditing }) => {
+  const buttonClasses = "p-2 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-transparent hover:bg-slate-800/50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent";
 
   return (
-    <header className="flex-shrink-0 flex items-center py-4 px-4 sm:py-6 sm:px-6 border-b border-[var(--border-color)] sticky top-0 bg-[var(--bg-header)] backdrop-blur-sm z-30">
+    <header className="flex-shrink-0 flex items-center py-4 px-4 sm:py-6 sm:px-6 border-b border-slate-800 sticky top-0 bg-slate-900/80 backdrop-blur-sm z-30">
       <div className="flex items-center gap-2">
-        <button onClick={onToggleSources} className={buttonClasses} aria-label={t('toggleSourcesPanel', lang)}>
-            <PanelLeftIcon className="w-7 h-7" />
-        </button>
-        <button onClick={onHistoryClick} data-tour-id="history-btn" className="text-2xl font-bold text-[var(--text-primary)] truncate text-left transition-opacity hover:opacity-80 flex-shrink-0">
-          <h1>
+         <h1 className="text-2xl font-bold text-[var(--text-primary)]">
             <span>Voice</span><span className="bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">Ink</span>
-          </h1>
-        </button>
+         </h1>
       </div>
       
       <div className="flex-grow" />
@@ -55,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({ onExport, onClear, onSettings, o
         >
           <RedoIcon className="w-7 h-7" />
         </button>
-        <div className="w-px h-7 bg-[var(--border-color)] mx-2"></div>
+        <div className="w-px h-7 bg-slate-800 mx-2"></div>
         <button
           onClick={onExport}
           disabled={isEditing}

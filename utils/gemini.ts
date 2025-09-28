@@ -1,7 +1,6 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language, t } from "./translations";
-import { ActionItem, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, Source, Message } from "../types";
+import { ActionItem, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, Source, Message, SourceGuide, TextStyleId } from "../types";
 
 const getAIClient = (apiKey: string) => new GoogleGenAI({ apiKey });
 
@@ -139,6 +138,31 @@ export const getProofreadAndStyledText = async (apiKey: string, text: string, st
     }
 };
 
+export const getStyledText = async (apiKey: string, text: string, style: TextStyleId, lang: Language): Promise<string> => {
+    try {
+        const ai = getAIClient(apiKey);
+        const styleName = t(`style${style.charAt(0).toUpperCase() + style.slice(1)}` as any, 'en');
+        
+        const prompt = `You are an expert editor. Rewrite the following text in a clear, polished, and well-structured '${styleName}' style. Correct any grammatical errors, spelling mistakes, and punctuation errors.
+        The original language is ${lang}, and your response MUST be in ${lang}.
+        
+        Text to process:
+        ---
+        ${text}
+        ---
+        `;
+
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+
+        return safelyGetText(response);
+    } catch (error) {
+        handleAIError(error, 'styling text');
+    }
+};
+
 const agentExpertiseInstructions: Record<AIAgentExpertise, string> = {
     // Definitions remain the same
     interviewer: "As an Interviewer, your goal is to assess the conversation. Identify the key questions asked and the quality of the answers. Note the speaker's communication skills, confidence, and knowledge. Point out strengths and weaknesses.",
@@ -163,7 +187,13 @@ const agentExpertiseInstructions: Record<AIAgentExpertise, string> = {
     coach: "As a Performance and Business Coach. Focus on goals, strategies, motivation, and actionable feedback. Identify opportunities for growth, skill development, and improved performance mentioned in the text. Your tone should be encouraging and forward-looking.",
     editor: "As a professional Editor. Analyze the text for clarity, conciseness, structure, and style. Suggest improvements to the language and flow. Do not just correct grammar, but enhance the overall readability and impact of the text.",
     tutor: "As a Tutor. Analyze the conversation to identify knowledge gaps, misunderstandings, or areas where a speaker could improve their understanding. Explain complex topics simply and ask clarifying questions. Your goal is to educate and clarify.",
-    speechwriter: "As a Speechwriter. Your task is to transform the key ideas from the conversation into a compelling speech, presentation, or monologue. Focus on creating a strong narrative, clear structure, and persuasive language. Identify the core message and build a powerful argument around it."
+    speechwriter: "As a Speechwriter. Your task is to transform the key ideas from the conversation into a compelling speech, presentation, or monologue. Focus on creating a strong narrative, clear structure, and persuasive language. Identify the core message and build a powerful argument around it.",
+    data_scientist: "As a Data Scientist, your task is to analyze the text for patterns, trends, correlations, and extract quantitative data. Focus on metrics, statistics, and data-driven insights. Structure your analysis logically, as if preparing a data report.",
+    ux_researcher: "As a UX/UI Researcher, focus on analyzing user feedback, interviews, and discussions. Your goal is to identify user needs, pain points, motivations, and suggestions for product improvement. Structure your analysis into key themes and actionable insights.",
+    software_developer: "As a Software Developer / Code Reviewer, analyze technical discussions. Identify mentions of algorithms, data structures, architectural patterns, code snippets, bugs, and performance issues. Your analysis should be technical and precise.",
+    product_manager: "As a Product Manager, analyze the text from a product-centric viewpoint. Identify user stories, feature requests, user feedback, and competitive landscape information. Frame your analysis in terms of product strategy and roadmap.",
+    strategist: "As a Strategist / Management Consultant, analyze the text for elements of a SWOT analysis (Strengths, Weaknesses, Opportunities, Threats). Evaluate market positioning, strategic initiatives, and provide high-level recommendations.",
+    pr_specialist: "As a PR Specialist, focus on public perception, brand reputation, key messaging, and the tone of communication. Analyze the text for potential PR risks or opportunities. Suggest how information could be framed for a press release or public statement."
 };
 
 export const getAgentResponse = async (apiKey: string, context: string, agents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] }, lang: Language, chatHistory: AIChatMessage[]): Promise<string> => {
@@ -244,5 +274,88 @@ export const extractEntities = async (apiKey: string, text: string, lang: Langua
         return JSON.parse(jsonText);
     } catch (error) {
         handleAIError(error, 'entity extraction');
+    }
+};
+
+export const getSourceGuide = async (apiKey: string, content: string, lang: Language): Promise<SourceGuide> => {
+    try {
+        const ai = getAIClient(apiKey);
+        const prompt = `Based on the following text content, generate a concise summary and a list of 4-5 key questions a user might ask about it. The response should be in ${lang}.
+        
+        Content:
+        ---
+        ${content}
+        ---
+        `;
+
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        summary: {
+                            type: Type.STRING,
+                            description: "A concise summary of the provided text."
+                        },
+                        questions: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.STRING,
+                                description: "A key question about the text."
+                            }
+                        }
+                    },
+                    required: ["summary", "questions"]
+                }
+            }
+        });
+        
+        const jsonText = safelyGetText(response);
+        return JSON.parse(jsonText);
+    } catch (error) {
+        handleAIError(error, 'source guide');
+    }
+};
+
+export const getEmotionAnalysis = async (apiKey: string, text: string, lang: Language): Promise<string> => {
+    try {
+        const ai = getAIClient(apiKey);
+        const prompt = `You are an expert psychologist. Analyze the emotional content of the following text. Identify the primary emotions expressed by the speakers (e.g., joy, sadness, anger, surprise, fear, frustration). Provide a brief analysis of the overall emotional arc of the conversation. Find 3-5 key emotional shifts and provide quotes to illustrate them. Respond in ${lang}.
+
+        Content:
+        ---
+        ${text}
+        ---
+        `;
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+        return safelyGetText(response);
+    } catch (error) {
+        handleAIError(error, 'emotion analysis');
+    }
+};
+
+export const getTonalityAnalysis = async (apiKey: string, text: string, lang: Language): Promise<string> => {
+    try {
+        const ai = getAIClient(apiKey);
+        const prompt = `You are an expert linguist. Analyze the tonality of the following text. Describe the overall tone of the conversation (e.g., formal, informal, friendly, tense, professional, humorous, sarcastic) and how it evolves. Provide specific examples from the text to support your analysis. Respond in ${lang}.
+
+        Content:
+        ---
+        ${text}
+        ---
+        `;
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+        return safelyGetText(response);
+    } catch (error) {
+        handleAIError(error, 'tonality analysis');
     }
 };
