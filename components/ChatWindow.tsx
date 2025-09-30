@@ -1,15 +1,14 @@
 
 import React, { useRef, useEffect, forwardRef, useState, useMemo } from 'react';
-import type { Message, Settings, Entity, EntityType } from '../types';
+import type { Message, Settings, Entity, EntityType, Session } from '../types';
 import { MicIcon, FileAudioIcon, BookmarkIcon, ClipboardIcon, ThumbsUpIcon, ThumbsDownIcon, CheckIcon } from './icons';
 import { t, Language } from '../utils/translations';
 
 interface ChatWindowProps {
-  messages: Message[];
+  session: Session;
   interimTranscript: string;
   isRecording: boolean;
   isProcessingFile: boolean;
-  settings: Settings;
   editingMessageId: string | null;
   onUpdateMessage: (id: string, newText: string) => void;
   onCancelEdit: () => void;
@@ -17,7 +16,6 @@ interface ChatWindowProps {
   playbackTime: number;
   onSeekAudio: (time: number) => void;
   onSaveToNote: (title: string, content: string, type: string) => void;
-  entities?: Entity[];
 }
 
 const entityColors: Record<EntityType, string> = {
@@ -204,7 +202,7 @@ const AssistantMessage: React.FC<{ message: Message; settings: Settings; lang: L
     );
 };
 
-const TranscriptionCard: React.FC<Omit<ChatWindowProps, 'messages' | 'interimTranscript' | 'isRecording' | 'isProcessingFile' | 'onSaveToNote'> & { messages: Message[], onSaveToNote: (title: string, content: string, type: string) => void; }> = ({
+const TranscriptionCard: React.FC<Omit<ChatWindowProps, 'session' | 'interimTranscript' | 'isRecording' | 'isProcessingFile' | 'onSaveToNote'> & { messages: Message[], settings: Settings, onSaveToNote: (title: string, content: string, type: string) => void; entities?: Entity[] }> = ({
     messages,
     settings,
     editingMessageId,
@@ -281,11 +279,10 @@ const TranscriptionCard: React.FC<Omit<ChatWindowProps, 'messages' | 'interimTra
 };
 
 export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({ 
-    messages, 
+    session, 
     interimTranscript, 
     isRecording,
     isProcessingFile,
-    settings,
     editingMessageId,
     onUpdateMessage,
     onCancelEdit,
@@ -293,9 +290,10 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
     playbackTime,
     onSeekAudio,
     onSaveToNote,
-    entities,
 }, ref) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
+  const { messages, settings, analysisResult } = session;
+  const entities = analysisResult?.entities;
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -365,6 +363,8 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
             </div>
         )}
         <div ref={endOfMessagesRef} />
+        {/* Spacer for floating controls */}
+        <div className="h-56 flex-shrink-0" />
       </>
     );
   };

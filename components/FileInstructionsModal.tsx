@@ -41,7 +41,6 @@ export const FileInstructionsModal: React.FC<FileInstructionsModalProps> = ({
         <div className="space-y-4 text-[var(--text-secondary)]">
             <p dangerouslySetInnerHTML={{ __html: t('fileInstructionP1', lang, { fileName: `<strong class="text-[var(--accent-primary)]">${fileName}</strong>` }) }} />
             <p>{t('fileInstructionP2', lang)}</p>
-            {/* FIX: Use dangerouslySetInnerHTML for all list items to correctly render HTML from translations. */}
             <ul className="list-decimal list-inside space-y-2 pl-4 bg-[var(--bg-subtle)] p-4 rounded-lg border border-[var(--border-color)]">
                 <li dangerouslySetInnerHTML={{ __html: t('fileInstructionL1', lang, { strong: (text) => `<strong class="text-[var(--text-primary)]">${text}</strong>` }) }} />
                 <li dangerouslySetInnerHTML={{ __html: t('fileInstructionL2', lang, { strong: (text) => `<strong class="text-[var(--text-primary)]">${text}</strong>` }) }} />

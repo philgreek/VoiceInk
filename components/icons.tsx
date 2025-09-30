@@ -408,7 +408,6 @@ export const TestIcon: React.FC<SVGProps> = (props) => (
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m10.4 12.6 1.6 1.6 3-3"/><path d="M8 18h.01"/>
     </svg>
 );
-// FIX: Add EmotionAnalysisIcon and TonalityAnalysisIcon components.
 export const EmotionAnalysisIcon: React.FC<SVGProps> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -515,7 +514,14 @@ export const ThumbsDownIcon: React.FC<SVGProps> = (props) => (
 export const FileExportIcon: React.FC<SVGProps> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
     <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-    <path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/>
+    <path d="M12 18v-6"/><path d="m15 15-3 3-3-3"/>
+  </svg>
+);
+
+export const FileImportIcon: React.FC<SVGProps> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+    <path d="M12 12v6"/><path d="m9 15 3 3 3-3"/>
   </svg>
 );
 

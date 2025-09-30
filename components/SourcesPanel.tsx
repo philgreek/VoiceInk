@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Source } from '../types';
 import { t, Language } from '../utils/translations';
@@ -96,7 +95,7 @@ const SourceDetailView: React.FC<{
 
     return (
         <div className="flex flex-col h-full">
-            <header className="p-4 flex justify-between items-center border-b border-slate-800 flex-shrink-0 h-[89px]">
+            <header className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0 h-[89px]">
                 <button
                     onClick={onBack}
                     className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-full"
@@ -146,7 +145,7 @@ const SourceItem: React.FC<{
     }, []);
 
     return (
-         <div className="group w-full flex items-center gap-3 p-2 rounded-md hover:bg-slate-800/60 text-left relative">
+         <div className="group w-full flex items-center gap-3 p-2 rounded-md hover:bg-[var(--bg-element-hover)] text-left relative">
             <div ref={menuRef}>
                 <button
                     onClick={() => setIsMenuOpen(p => !p)}
@@ -178,7 +177,7 @@ const SourceItem: React.FC<{
                 checked={isSelected}
                 onChange={() => onToggle(source.id)}
                 onClick={(e) => e.stopPropagation()}
-                className="w-4 h-4 rounded-none bg-slate-700 border-slate-600 text-cyan-500 focus:ring-cyan-600 flex-shrink-0"
+                className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-cyan-500 focus:ring-cyan-600 flex-shrink-0"
             />
         </div>
     );
@@ -206,27 +205,27 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
     const viewingSource = sources.find(s => s.id === viewingSourceId);
 
     const asideClasses = `
-        flex-shrink-0 bg-slate-950 backdrop-blur-sm border-r border-slate-800 flex flex-col
+        flex-shrink-0 bg-[var(--bg-surface)] rounded-lg shadow-md flex flex-col
         transition-all duration-300 ease-in-out
-        ${isCollapsed ? 'w-16' : (viewingSource ? 'w-[40vw] max-w-xl' : 'w-80')}`;
+        ${isCollapsed ? 'w-16 basis-16' : (viewingSource ? 'w-[40vw] max-w-xl basis-[40vw]' : 'w-80 basis-80')}`;
 
     if (isCollapsed) {
         return (
             <aside className={asideClasses}>
-                <header className="p-4 flex justify-center items-center border-b border-slate-800 flex-shrink-0 h-[89px]">
+                <header className="p-4 flex justify-center items-center border-b border-[var(--border-color)] flex-shrink-0 h-[60px]">
                     <button
                         onClick={onToggleCollapse}
-                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-full"
+                        className="p-2 text-slate-400 hover:text-white hover:bg-[var(--bg-element-hover)] rounded-full"
                         title={t('expandPanel', lang)}
                     >
                         <PanelLeftIcon className="w-6 h-6" />
                     </button>
                 </header>
                 <div className="p-2 space-y-2">
-                    <button onClick={onAddSourceClick} className="w-full aspect-square bg-slate-800/50 hover:bg-slate-700/80 rounded-lg flex items-center justify-center" title={t('addSource', lang)}>
+                    <button onClick={onAddSourceClick} className="w-full aspect-square bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg flex items-center justify-center" title={t('addSource', lang)}>
                         <PlusCircleIcon className="w-6 h-6 text-slate-300" />
                     </button>
-                    <button onClick={onSearchClick} className="w-full aspect-square bg-slate-800/50 hover:bg-slate-700/80 rounded-lg flex items-center justify-center" title={t('find', lang)}>
+                    <button onClick={onSearchClick} className="w-full aspect-square bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg flex items-center justify-center" title={t('find', lang)}>
                         <SearchIcon className="w-6 h-6 text-slate-300" />
                     </button>
                 </div>
@@ -250,11 +249,11 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
 
     return (
         <aside className={asideClasses}>
-            <header className="p-4 flex justify-between items-center border-b border-slate-800 flex-shrink-0 h-[89px]">
+            <header className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0 h-[60px]">
                 <h2 className="text-xl font-bold text-slate-100">{t('sources', lang)}</h2>
                 <button
                     onClick={onToggleCollapse}
-                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-full"
+                    className="p-2 text-slate-400 hover:text-white hover:bg-[var(--bg-element-hover)] rounded-full"
                     title={t('collapsePanel', lang)}
                 >
                     <PanelLeftCloseIcon className="w-6 h-6" />
@@ -262,16 +261,16 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
             </header>
             <div className="p-4 space-y-4">
                 <div className="flex items-center gap-2">
-                    <button onClick={onAddSourceClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-700 rounded-md transition-colors text-sm font-semibold">
+                    <button onClick={onAddSourceClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors text-sm font-semibold">
                         <PlusCircleIcon className="w-4 h-4" />
                         {t('add', lang)}
                     </button>
-                    <button onClick={onSearchClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-700 rounded-md transition-colors text-sm font-semibold">
+                    <button onClick={onSearchClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-md transition-colors text-sm font-semibold">
                         <SearchIcon className="w-4 h-4" />
                         {t('find', lang)}
                     </button>
                 </div>
-                <div className="border-t border-slate-800"></div>
+                <div className="border-t border-[var(--border-color)]"></div>
                 <div className="flex items-center justify-between">
                     <label htmlFor="select-all-sources" className="text-sm text-slate-400 select-none cursor-pointer">
                         {t('selectAllSources', lang)}
@@ -281,7 +280,7 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
                         id="select-all-sources"
                         checked={allSourcesSelected}
                         onChange={onToggleSelectAll}
-                        className="w-4 h-4 rounded-none bg-slate-700 border-slate-600 text-cyan-500 focus:ring-cyan-600"
+                        className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-cyan-500 focus:ring-cyan-600"
                     />
                 </div>
             </div>

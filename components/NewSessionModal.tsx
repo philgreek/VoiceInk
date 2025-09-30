@@ -9,6 +9,8 @@ interface NewSessionModalProps {
   onClose: () => void;
   onConfirm: (name: string, profileId: SessionProfileId) => void;
   lang: Language;
+  canContinue?: boolean;
+  onContinue?: () => void;
 }
 
 const getDefaultSessionName = (lang: Language) => {
@@ -21,14 +23,16 @@ const getDefaultSessionName = (lang: Language) => {
     return `${t('sessionNameDefault', lang)} ${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
-export const NewSessionModal: React.FC<NewSessionModalProps> = ({ onClose, onConfirm, lang }) => {
+export const NewSessionModal: React.FC<NewSessionModalProps> = ({ onClose, onConfirm, lang, canContinue, onContinue }) => {
     const [name, setName] = useState(getDefaultSessionName(lang));
     const [selectedProfileId, setSelectedProfileId] = useState<SessionProfileId>('pedagogical');
     const inputRef = React.useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        inputRef.current?.select();
-    }, []);
+        if (!canContinue) {
+            inputRef.current?.select();
+        }
+    }, [canContinue]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -50,12 +54,37 @@ export const NewSessionModal: React.FC<NewSessionModalProps> = ({ onClose, onCon
           >
             <form onSubmit={handleSubmit}>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-[var(--text-primary)]">{t('newSession', lang)}</h2>
+                  <h2 className="text-2xl font-bold text-[var(--text-primary)]">{canContinue ? t('continueOrNew', lang) : t('newSession', lang)}</h2>
                   <button type="button" onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors" aria-label={t('close', lang)}>
                     <XIcon className="w-6 h-6" />
                   </button>
                 </div>
+
+                {canContinue && onContinue && (
+                    <div className="mb-6">
+                        <button
+                            type="button"
+                            onClick={onContinue}
+                            className="w-full px-6 py-3 bg-[var(--accent-primary)] text-white font-semibold rounded-md hover:bg-[var(--accent-primary-hover)] transition-colors text-lg"
+                        >
+                            {t('continueCurrentSession', lang)}
+                        </button>
+                    </div>
+                )}
+
+                {canContinue && (
+                     <div className="relative my-6">
+                        <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                            <div className="w-full border-t border-[var(--border-color)]" />
+                        </div>
+                        <div className="relative flex justify-center">
+                            <span className="bg-[var(--bg-surface)] px-2 text-sm text-[var(--text-secondary)]">OR</span>
+                        </div>
+                    </div>
+                )}
+                
                 <div className="space-y-6">
+                    {canContinue && <h3 className="text-lg font-semibold text-[var(--text-primary)]">{t('startNewSessionTitle', lang)}</h3>}
                     <div>
                         <label htmlFor="session-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">{t('sessionNameTitle', lang)}</label>
                         <input
@@ -97,9 +126,9 @@ export const NewSessionModal: React.FC<NewSessionModalProps> = ({ onClose, onCon
                     <button
                       type="submit"
                       disabled={!name.trim()}
-                      className="px-6 py-2 bg-[var(--accent-primary)] text-white font-semibold rounded-md hover:bg-[var(--accent-primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-6 py-2 bg-slate-600 text-white font-semibold rounded-md hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {t('continue', lang)}
+                      {t('start', lang)}
                     </button>
                   </div>
               </form>

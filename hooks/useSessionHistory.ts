@@ -1,9 +1,8 @@
 
 import { useState, useCallback, useEffect } from 'react';
-// FIX: Import `SessionProfileId` to correctly type the `sessionData` parameter in `saveSession`.
-import { Session, Source, Settings, AnalysisResult, SessionProfileId } from '../types';
+import { Session } from '../types';
 import { initDB } from '../utils/db';
-import { produce } from 'immer';
+import JSZip from 'jszip';
 
 const MAX_HISTORY_ITEMS = 10;
 
@@ -27,20 +26,19 @@ export const useSessionHistory = () => {
   }, [fetchSessions]);
 
   const saveSession = useCallback(async (
-    // FIX: Add `profileId` to the `sessionData` type to match the `Session` interface.
-    sessionData: { name: string; profileId: SessionProfileId; sources: Source[]; settings: Settings; hasAudio: boolean; analysisResult: AnalysisResult | null; selectedSourceIds?: string[]; },
+    sessionData: Session,
     audioBlob: Blob | null
   ): Promise<Session> => {
     const db = await initDB();
-    const newSession: Session = {
+    const sessionToSave: Session = {
       ...sessionData,
-      id: `session-${Date.now()}`,
       savedAt: new Date().toISOString(),
+      hasAudio: sessionData.hasAudio || !!audioBlob,
     };
     
-    await db.put('sessions', newSession);
-    if(audioBlob && newSession.hasAudio) {
-        await db.put('audio', { id: newSession.id, blob: audioBlob });
+    await db.put('sessions', sessionToSave);
+    if(audioBlob) {
+        await db.put('audio', { id: sessionToSave.id, blob: audioBlob });
     }
 
     await fetchSessions();
@@ -60,31 +58,8 @@ export const useSessionHistory = () => {
         }));
         await tx.done;
     }
-    return newSession;
+    return sessionToSave;
   }, [fetchSessions]);
-
-  // FIX: Replaced 'updateSessionAnalysis' with a more generic 'updateSession' to handle partial updates.
-  const updateSession = useCallback(async (sessionId: string, updates: Partial<Session>): Promise<Session> => {
-    const db = await initDB();
-    const session = await db.get('sessions', sessionId);
-    if (!session) {
-      throw new Error(`Session with id ${sessionId} not found`);
-    }
-    const updatedSession = produce(session, draft => {
-        Object.assign(draft, updates);
-    });
-    await db.put('sessions', updatedSession);
-    
-    setSessions(prevSessions => 
-      produce(prevSessions, draft => {
-        const index = draft.findIndex(s => s.id === sessionId);
-        if (index !== -1) {
-          draft[index] = updatedSession;
-        }
-      })
-    );
-    return updatedSession;
-  }, []);
 
   const deleteSession = useCallback(async (sessionId: string) => {
     const db = await initDB();
@@ -106,5 +81,30 @@ export const useSessionHistory = () => {
       }
   }, []);
 
-  return { sessions, saveSession, deleteSession, getSessionAudio, updateSession };
+  const importSession = useCallback(async (file: File): Promise<Session> => {
+    const zip = await JSZip.loadAsync(file);
+    const sessionFile = zip.file('session.json');
+    const audioFile = zip.file('audio.webm');
+
+    if (!sessionFile) {
+        throw new Error('session.json not found in the archive.');
+    }
+    
+    const sessionDataString = await sessionFile.async('string');
+    const importedData = JSON.parse(sessionDataString) as Session;
+    
+    const audioBlob = audioFile ? await audioFile.async('blob') : null;
+    
+    const sessionToSave: Session = {
+        ...importedData,
+        id: `session-${Date.now()}`, // Assign a new ID to prevent overwriting
+        savedAt: new Date().toISOString(),
+        hasAudio: !!audioBlob,
+    };
+
+    return saveSession(sessionToSave, audioBlob);
+  }, [saveSession]);
+
+
+  return { sessions, saveSession, deleteSession, getSessionAudio, importSession };
 };

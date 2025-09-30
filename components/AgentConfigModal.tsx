@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { XIcon } from './icons';
 import { t, Language } from '../utils/translations';
@@ -87,8 +88,6 @@ const Column = <T extends string, I extends { id: T; nameKey: any; category: str
             <input
                 type="text"
                 value={searchTerm}
-                // FIX: The search input was not connected to a state updater.
-                // Added onSearchChange prop and connected it to the input's onChange event.
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={`${t('search', lang)}`}
                 className="w-full bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none"
@@ -98,11 +97,9 @@ const Column = <T extends string, I extends { id: T; nameKey: any; category: str
                     <div key={category}>
                         {sortType === 'group' && (
                             <h4 className="text-xs font-bold uppercase text-[var(--text-secondary)] px-3 pt-2 pb-1">
-                                {/* FIX: Corrected translation key generation for category. */}
-                                {t(category as any, lang)}
+                                {t(`category${category.charAt(0).toUpperCase() + category.slice(1)}` as any, lang)}
                             </h4>
                         )}
-                        {/* FIX: Cast `items` to `I[]` to resolve incorrect type inference to `unknown`. */}
                         {(items as I[]).map(item => (
                             <button key={item.id} onClick={() => onToggle(item.id)} className={buttonClass(item.id)}>
                                 {t(item.nameKey, lang)}

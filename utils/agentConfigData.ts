@@ -1,3 +1,4 @@
+
 import { AIAgentExpertiseItem, AIAgentDomainItem } from '../types';
 
 export const allExpertise: AIAgentExpertiseItem[] = [
@@ -21,7 +22,6 @@ export const allExpertise: AIAgentExpertiseItem[] = [
   { id: 'speechwriter', nameKey: 'agentSpeechwriter', category: 'categoryCreative', relatedDomains: ['public_relations', 'general'] },
   { id: 'translator', nameKey: 'agentTranslator', category: 'categoryCreative', relatedDomains: ['general', 'art_culture', 'law'] },
   // Research & Education
-  // FIX: The domain 'sociology' is not a valid AIAgentDomain. Replaced with 'psychology' which is a valid and related domain.
   { id: 'academic_researcher', nameKey: 'agentAcademic_researcher', category: 'categoryResearch', relatedDomains: ['science', 'education', 'healthcare', 'psychology'] },
   { id: 'course_developer', nameKey: 'agentCourse_developer', category: 'categoryResearch', relatedDomains: ['education', 'career_development'] },
   { id: 'sociologist', nameKey: 'agentSociologist', category: 'categoryResearch', relatedDomains: ['science', 'psychology'] },

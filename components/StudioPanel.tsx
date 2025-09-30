@@ -1,3 +1,7 @@
+
+
+
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Note, SessionProfileId, StudioToolId, Session, ToolSettings, TextStyleId } from '../types';
 import { t, Language } from '../utils/translations';
@@ -7,10 +11,8 @@ import { studioTools, textStyles } from '../utils/profiles';
 interface StudioPanelProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-  isSessionLoaded: boolean;
   lang: Language;
   session: Session;
-  notes: Note[];
   onDeleteNote: (noteId: string) => void;
   onRenameNote: (noteId: string, newTitle: string) => void;
   onConvertToSource: (noteId: string) => void;
@@ -20,8 +22,7 @@ interface StudioPanelProps {
   onConfigureToolsClick: () => void;
   onTriggerTool: (toolId: StudioToolId) => void;
   processingTool: StudioToolId | null;
-  toolSettings?: ToolSettings;
-  onUpdateToolSettings: (toolId: StudioToolId, settings: any) => void;
+  onUpdateToolSettings: (toolId: StudioToolId, settings: TextStyleId) => void;
 }
 
 const ToolCard: React.FC<{ 
@@ -29,8 +30,8 @@ const ToolCard: React.FC<{
     onClick: () => void, 
     lang: Language,
     isLoading: boolean,
-    settings?: any;
-    onUpdateSettings: (settings: any) => void;
+    settings?: TextStyleId;
+    onUpdateSettings: (settings: TextStyleId) => void;
 }> = ({ toolId, onClick, lang, isLoading, settings, onUpdateSettings }) => {
     const tool = studioTools[toolId];
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -58,7 +59,7 @@ const ToolCard: React.FC<{
             <button
                 onClick={onClick}
                 disabled={isLoading}
-                className="w-full h-full p-3 bg-slate-800/50 hover:bg-slate-700/80 rounded-lg transition-colors flex flex-col items-start justify-between text-left gap-2 disabled:cursor-wait disabled:bg-slate-700/80"
+                className="w-full h-full p-3 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg transition-colors flex flex-col items-start justify-between text-left gap-2 disabled:cursor-wait disabled:hover:bg-[var(--bg-element)]"
             >
                 <div className="flex justify-between items-start w-full">
                   <tool.icon className="w-5 h-5 text-slate-300" />
@@ -81,10 +82,12 @@ const ToolCard: React.FC<{
                                 <button 
                                     key={style.id} 
                                     onClick={() => {
-                                        onUpdateSettings({ style: style.id });
+                                        // FIX: Pass the style ID directly, not as an object.
+                                        onUpdateSettings(style.id);
                                         setIsSettingsOpen(false);
                                     }}
-                                    className={`w-full text-left px-3 py-1.5 text-sm  hover:bg-slate-800 ${settings?.style === style.id ? 'text-cyan-400' : 'text-slate-200'}`}
+                                    // FIX: Compare settings directly with style ID.
+                                    className={`w-full text-left px-3 py-1.5 text-sm  hover:bg-slate-800 ${settings === style.id ? 'text-cyan-400' : 'text-slate-200'}`}
                                 >
                                     {t(style.nameKey, lang)}
                                 </button>
@@ -105,10 +108,7 @@ const ToolCard: React.FC<{
 };
 
 const NoteIcon: React.FC<{note: Note}> = ({note}) => {
-    if (note.icon) {
-        const Icon = note.icon;
-        return <Icon className="w-5 h-5 text-slate-400" />;
-    }
+    // FIX: Removed logic for note.icon, as it's no longer part of the Note type.
     switch (note.type) {
         case 'summary': return <FileTextIcon className="w-5 h-5 text-slate-400" />;
         case 'flashcards': return <FlashcardsIcon className="w-5 h-5 text-slate-400" />;
@@ -156,7 +156,7 @@ const NoteItem: React.FC<{
 
     return (
         <div 
-            className="group flex items-center justify-between p-2 rounded-md hover:bg-slate-800/60 cursor-pointer"
+            className="group flex items-center justify-between p-2 rounded-md hover:bg-[var(--bg-element-hover)] cursor-pointer"
             onClick={() => onView(note.id)}
         >
             <div className="flex items-center gap-3 min-w-0">
@@ -269,7 +269,7 @@ const NoteDetailView: React.FC<{
 
     return (
         <div className="flex flex-col h-full">
-            <header className="p-4 flex justify-between items-center border-b border-slate-800 flex-shrink-0 h-[89px]">
+            <header className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0 h-[60px]">
                 <div className="flex items-center gap-2 text-lg font-semibold text-slate-400">
                     <button className="hover:text-white" onClick={onBack}>{t('studio', lang)}</button>
                     <span>&gt;</span>
@@ -308,7 +308,7 @@ const NoteDetailView: React.FC<{
                     dangerouslySetInnerHTML={{ __html: note.content || '<p><br></p>' }}
                 />
             </div>
-            <div className="p-4 border-t border-slate-800 flex-shrink-0">
+            <div className="p-4 border-t border-[var(--border-color)] flex-shrink-0">
                 <button onClick={handleConvertToSourceClick} className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-md transition-colors">
                     <FileExportIcon className="w-5 h-5" />
                     <span>{t('convertToSource', lang)}</span>
@@ -320,9 +320,10 @@ const NoteDetailView: React.FC<{
 
 
 export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
-  const { isCollapsed, onToggleCollapse, session, lang, notes, onDeleteNote, onRenameNote, onConvertToSource, onConvertAllNotesToSource, onAddNewNote, onUpdateNoteContent, onConfigureToolsClick, onTriggerTool, processingTool, toolSettings, onUpdateToolSettings } = props;
+  const { isCollapsed, onToggleCollapse, session, lang, onDeleteNote, onRenameNote, onConvertToSource, onConvertAllNotesToSource, onAddNewNote, onUpdateNoteContent, onConfigureToolsClick, onTriggerTool, processingTool, onUpdateToolSettings } = props;
   const [viewingNoteId, setViewingNoteId] = useState<string | null>(null);
 
+  const notes = session.notes || [];
   const viewingNote = notes.find(n => n.id === viewingNoteId);
   const activeTools = session.activeTools || [];
   
@@ -336,9 +337,9 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
   };
   
   const asideClasses = `
-    relative z-20 flex-shrink-0 bg-slate-950 backdrop-blur-sm border-l border-slate-800 flex flex-col
+    relative z-20 flex-shrink-0 bg-[var(--bg-surface)] rounded-lg shadow-md flex flex-col
     transition-all duration-300 ease-in-out
-    ${isCollapsed ? 'w-16' : (viewingNote ? 'w-[50vw] max-w-2xl' : 'w-80')}`;
+    ${isCollapsed ? 'w-16 basis-16' : (viewingNote ? 'w-[50vw] max-w-2xl basis-[50vw]' : 'w-80 basis-80')}`;
 
   return (
     <aside className={asideClasses}>
@@ -354,7 +355,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
             />
         ) : (
             <div className="flex flex-col h-full">
-                <header className="p-4 flex justify-between items-center border-b border-slate-800 flex-shrink-0 h-[89px]">
+                <header className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0 h-[60px]">
                 {!isCollapsed && (
                     <div className="flex items-center gap-2">
                          <h2 className="text-xl font-bold text-slate-100">{t('studio', lang)}</h2>
@@ -366,7 +367,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
                 <div className={`${isCollapsed ? 'w-full flex justify-center' : ''}`}>
                     <button
                     onClick={onToggleCollapse}
-                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-full"
+                    className="p-2 text-slate-400 hover:text-white hover:bg-[var(--bg-element-hover)] rounded-full"
                     title={isCollapsed ? t('expandPanel', lang) : t('collapsePanel', lang)}
                     >
                     {isCollapsed ? <PanelRightIcon className="w-6 h-6" /> : <PanelRightCloseIcon className="w-6 h-6" />}
@@ -381,7 +382,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
                                 const tool = studioTools[toolId];
                                 if (!tool) return null;
                                 return (
-                                <button key={toolId} onClick={() => onTriggerTool(toolId)} className="w-full aspect-square relative group bg-slate-800/50 hover:bg-slate-700/80 rounded-lg flex items-center justify-center" title={t(tool.nameKey, lang)}>
+                                <button key={toolId} onClick={() => onTriggerTool(toolId)} className="w-full aspect-square relative group bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg flex items-center justify-center" title={t(tool.nameKey, lang)}>
                                     <tool.icon className="w-6 h-6 text-slate-300" />
                                     <div className="absolute bottom-1 right-1 bg-slate-600 rounded-full p-0.5">
                                         <PlusIcon className="w-2 h-2 text-slate-200" />
@@ -420,13 +421,13 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
                                     onClick={() => onTriggerTool(toolId)} 
                                     lang={lang}
                                     isLoading={processingTool === toolId}
-                                    settings={toolSettings?.[toolId as keyof ToolSettings]}
+                                    settings={toolId === 'textStyle' ? session.toolSettings?.textStyle : undefined}
                                     onUpdateSettings={(newSettings) => onUpdateToolSettings(toolId, newSettings)}
                                 />
                             ))}
                         </div>
                         
-                        <div className="mt-6 pt-4 border-t border-slate-800">
+                        <div className="mt-6 pt-4 border-t border-[var(--border-color)]">
                             <h3 className="px-2 mb-2 text-sm font-semibold text-slate-400">{t('generatedNotes', lang)}</h3>
                             <div className="space-y-1">
                                 {notes.map(note => (
@@ -443,7 +444,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
                             </div>
                         </div>
                     </div>
-                    <div className="p-4 border-t border-slate-800">
+                    <div className="p-4 border-t border-[var(--border-color)]">
                         <button onClick={handleAddNoteClick} className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-slate-200 hover:bg-white text-slate-800 font-semibold rounded-full transition-colors">
                             <EditIcon className="w-4 h-4" />
                             <span>{t('addNote', lang)}</span>

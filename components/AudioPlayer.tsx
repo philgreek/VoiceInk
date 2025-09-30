@@ -1,15 +1,10 @@
 
-
-
-
 import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { PlayIcon, PauseIcon } from './icons';
 
 interface AudioPlayerProps {
-  // FIX: Allow blob to be null to handle cases where no audio is loaded.
   blob: Blob | null;
   onTimeUpdate: (time: number) => void;
-  // FIX: Added isVisible prop to control player visibility from the parent component.
   isVisible?: boolean;
 }
 
@@ -88,40 +83,38 @@ export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(({ blo
   }
 
   return (
-    <div className="flex-shrink-0 bg-[var(--bg-header)] backdrop-blur-sm p-3 border-t border-[var(--border-color)] sticky bottom-[104px] sm:bottom-[112px] z-30">
-      <div className="flex items-center gap-4 max-w-lg mx-auto">
-         <audio
-          ref={(node) => {
-              localAudioRef.current = node;
-              if (typeof ref === 'function') {
-                  ref(node);
-              } else if (ref) {
-                  ref.current = node;
-              }
-          }}
-          src={audioURL ?? undefined}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          onEnded={() => setIsPlaying(false)}
-        />
-        <button
-          onClick={handlePlayPause}
-          className="p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-full text-[var(--text-primary)] transition-colors"
-        >
-          {isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />}
-        </button>
-        <div className="flex-grow flex items-center gap-3">
-            <span className="text-sm font-mono text-[var(--text-secondary)]">{formatTime(currentTime)}</span>
-            <input 
-                type="range" 
-                min="0"
-                max={duration || 1}
-                value={currentTime}
-                onChange={handleSeek}
-                className="w-full h-2 bg-[var(--bg-element)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-primary)]"
-            />
-            <span className="text-sm font-mono text-[var(--text-secondary)]">{formatTime(duration)}</span>
-        </div>
+    <div className="flex items-center gap-4">
+       <audio
+        ref={(node) => {
+            localAudioRef.current = node;
+            if (typeof ref === 'function') {
+                ref(node);
+            } else if (ref) {
+                ref.current = node;
+            }
+        }}
+        src={audioURL ?? undefined}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+      />
+      <button
+        onClick={handlePlayPause}
+        className="p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-full text-[var(--text-primary)] transition-colors"
+      >
+        {isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />}
+      </button>
+      <div className="flex-grow flex items-center gap-3">
+          <span className="text-sm font-mono text-[var(--text-secondary)]">{formatTime(currentTime)}</span>
+          <input 
+              type="range" 
+              min="0"
+              max={duration || 1}
+              value={currentTime}
+              onChange={handleSeek}
+              className="w-full h-2 bg-[var(--bg-element)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-primary)]"
+          />
+          <span className="text-sm font-mono text-[var(--text-secondary)]">{formatTime(duration)}</span>
       </div>
     </div>
   );

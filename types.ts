@@ -1,4 +1,5 @@
-// FIX: Import React to provide types for React.FC and React.SVGProps.
+
+
 import React from 'react';
 import { translations } from './utils/translations';
 
@@ -31,7 +32,6 @@ export interface Note {
   content: string;
   type: string; // e.g., 'summary', 'flashcards'
   time: string; // ISO date string
-  icon?: React.FC<React.SVGProps<SVGSVGElement>>;
 }
 
 export interface SpeakerProfile {
@@ -196,10 +196,16 @@ export interface ToolSettings {
     textStyle?: TextStyleId;
 }
 
+export interface AgentConfig {
+    expertise: AIAgentExpertise[];
+    domains: AIAgentDomain[];
+}
+
 export interface Session {
   id:string;
   name: string;
   profileId: SessionProfileId;
+  messages: Message[];
   sources: Source[];
   notes?: Note[];
   settings: Settings;
@@ -209,6 +215,7 @@ export interface Session {
   selectedSourceIds?: string[];
   activeTools?: StudioToolId[];
   toolSettings?: ToolSettings;
+  agentConfig: AgentConfig;
 }
 
 export interface LoadedSession extends Session {

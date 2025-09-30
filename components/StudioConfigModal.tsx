@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { XIcon, SearchIcon, PlusIcon } from './icons';
 import { t, Language } from '../utils/translations';
@@ -122,7 +123,6 @@ export const StudioConfigModal: React.FC<StudioConfigModalProps> = ({ onClose, o
                             {t(`toolCategory${category.charAt(0).toUpperCase() + category.slice(1)}` as any, lang)}
                         </h4>
                         <div className="space-y-1">
-                            {/* FIX: Cast `tools` to `StudioTool[]` to resolve incorrect type inference to `unknown`. */}
                             {(tools as StudioTool[]).map(tool => (
                                 <ToolItem 
                                     key={tool.id}

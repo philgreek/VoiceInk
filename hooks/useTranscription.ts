@@ -27,6 +27,7 @@ export const useTranscription = ({ lang, onFinalTranscript, onRecordingComplete,
   const onFinalTranscriptRef = useRef(onFinalTranscript);
   const onRecordingCompleteRef = useRef(onRecordingComplete);
   const isListeningRef = useRef(false);
+  const isPausedRef = useRef(false); // To track pause state internally
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -74,7 +75,7 @@ export const useTranscription = ({ lang, onFinalTranscript, onRecordingComplete,
     };
 
     recognition.onend = () => {
-      if (isListeningRef.current) {
+      if (isListeningRef.current && !isPausedRef.current) {
         lastProcessedFinal = '';
         try {
           recognition.start();
@@ -124,6 +125,7 @@ export const useTranscription = ({ lang, onFinalTranscript, onRecordingComplete,
     if (recognitionRef.current && !isListeningRef.current && mediaStream) {
       try {
         isListeningRef.current = true;
+        isPausedRef.current = false; // Reset pause state
         setIsListening(true);
         setInterimTranscript('');
         recognitionRef.current.start();
@@ -147,10 +149,11 @@ export const useTranscription = ({ lang, onFinalTranscript, onRecordingComplete,
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListeningRef.current) {
       isListeningRef.current = false;
+      isPausedRef.current = false; // Reset pause state
       setIsListening(false);
       recognitionRef.current.stop();
       
-      if (mediaRecorderRef.current?.state === 'recording') {
+      if (mediaRecorderRef.current && (mediaRecorderRef.current.state === 'recording' || mediaRecorderRef.current.state === 'paused')) {
         mediaRecorderRef.current.onstop = () => {
             const blob = audioChunksRef.current.length > 0
               ? new Blob(audioChunksRef.current, { type: 'audio/webm' })
@@ -164,6 +167,30 @@ export const useTranscription = ({ lang, onFinalTranscript, onRecordingComplete,
       }
     }
   }, []);
+
+  const pauseListening = useCallback(() => {
+    if (recognitionRef.current && isListeningRef.current && !isPausedRef.current) {
+        isPausedRef.current = true;
+        recognitionRef.current.stop(); // will trigger onend, which now checks isPausedRef
+        if (mediaRecorderRef.current?.state === 'recording') {
+            mediaRecorderRef.current.pause();
+        }
+    }
+  }, []);
+
+  const resumeListening = useCallback(() => {
+      if (recognitionRef.current && isListeningRef.current && isPausedRef.current) {
+          isPausedRef.current = false;
+          try {
+            recognitionRef.current.start();
+          } catch(e) {
+            console.error("Error resuming speech recognition:", e);
+          }
+          if (mediaRecorderRef.current?.state === 'paused') {
+              mediaRecorderRef.current.resume();
+          }
+      }
+  }, []);
   
   const restartListening = useCallback(() => {
     if (recognitionRef.current && isListeningRef.current) {
@@ -171,5 +198,5 @@ export const useTranscription = ({ lang, onFinalTranscript, onRecordingComplete,
     }
   }, []);
 
-  return { isListening, interimTranscript, startListening, stopListening, isSpeechRecognitionSupported, restartListening };
+  return { isListening, interimTranscript, startListening, stopListening, isSpeechRecognitionSupported, restartListening, pauseListening, resumeListening };
 };

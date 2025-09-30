@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language, t } from "./translations";
 import { ActionItem, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, Source, Message, SourceGuide, TextStyleId } from "../types";
@@ -281,8 +282,8 @@ export const getSourceGuide = async (apiKey: string, content: string, lang: Lang
     try {
         const ai = getAIClient(apiKey);
         const prompt = `Based on the following text content, generate a concise summary and a list of 4-5 key questions a user might ask about it. The response should be in ${lang}.
-        
-        Content:
+
+        Text Content:
         ---
         ${content}
         ---

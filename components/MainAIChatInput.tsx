@@ -22,33 +22,31 @@ export const MainAIChatInput: React.FC<MainAIChatInputProps> = ({ onAskAIAgent, 
   };
 
   return (
-    <div className="flex-shrink-0 p-4">
-      <form onSubmit={handleSubmit} className="flex items-center gap-2 max-w-lg mx-auto">
-        <button
-          type="button"
-          onClick={onAgentConfigClick}
-          disabled={isProcessing}
-          className="p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-          aria-label={t('configureAgent', lang)}
-        >
-            <SparklesIcon className="w-6 h-6" />
-        </button>
-        <input
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder={t('askAIAgent', lang)}
-          disabled={isProcessing}
-          className="w-full bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-3 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none disabled:opacity-50"
-        />
-        <button
-          type="submit"
-          disabled={isProcessing || !prompt.trim()}
-          className="p-3 bg-slate-700 hover:bg-slate-600 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <SendIcon className="w-6 h-6" />
-        </button>
-      </form>
-    </div>
+    <form onSubmit={handleSubmit} className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={onAgentConfigClick}
+        disabled={isProcessing}
+        className="p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+        aria-label={t('configureAgent', lang)}
+      >
+          <SparklesIcon className="w-6 h-6" />
+      </button>
+      <input
+        type="text"
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        placeholder={t('askAIAgent', lang)}
+        disabled={isProcessing}
+        className="w-full bg-[var(--bg-element)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-3 focus:ring-2 focus:ring-[var(--accent-primary)] focus:outline-none disabled:opacity-50"
+      />
+      <button
+        type="submit"
+        disabled={isProcessing || !prompt.trim()}
+        className="p-3 bg-slate-700 hover:bg-slate-600 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <SendIcon className="w-6 h-6" />
+      </button>
+    </form>
   );
 };

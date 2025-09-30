@@ -1,3 +1,4 @@
+
 export const translations = {
   en: {
     voiceInk: 'VoiceInk',
@@ -134,6 +135,7 @@ export const translations = {
     exportAnalysis: 'Export analysis',
     exportStyledText: 'Export styled text',
     changeStyle: 'Change Style',
+    chat: 'Chat',
     aiChat: 'AI Chat',
     exportAIChat: 'Export AI Chat',
     configureAgent: 'Configure Agent',
@@ -367,6 +369,11 @@ export const translations = {
     toolCategoryLanguage: 'Language',
     toolCategoryEditing: 'Editing',
     toolCategoryPsychological: 'Psychological',
+    importSession: 'Import Session',
+    exportSession: 'Export Session',
+    continueOrNew: 'Continue or Start New?',
+    continueCurrentSession: 'Continue current session',
+    startNewSessionTitle: 'Or start a new session',
   },
   ru: {
     voiceInk: 'VoiceInk',
@@ -503,6 +510,7 @@ export const translations = {
     exportAnalysis: 'Экспорт аналитики',
     exportStyledText: 'Экспорт текста',
     changeStyle: 'Изменить стиль',
+    chat: 'Чат',
     aiChat: 'AI Чат',
     exportAIChat: 'Экспорт AI-чата',
     configureAgent: 'Настроить агента',
@@ -736,6 +744,11 @@ export const translations = {
     toolCategoryLanguage: 'Языковые',
     toolCategoryEditing: 'Редактирование',
     toolCategoryPsychological: 'Психологические',
+    importSession: 'Импортировать сессию',
+    exportSession: 'Экспортировать сессию',
+    continueOrNew: 'Продолжить или начать новую?',
+    continueCurrentSession: 'Продолжить текущую сессию',
+    startNewSessionTitle: 'Или начать новую сессию',
   },
   es: { /* ... */ },
   fr: { /* ... */ },
