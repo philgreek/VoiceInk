@@ -1,14 +1,14 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Source } from '../types';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Session, Source } from '../types';
 import { t, Language } from '../utils/translations';
 import { PanelLeftCloseIcon, PanelLeftIcon, PlusCircleIcon, SearchIcon, FileIcon, LinkIcon, FileAudioIcon, MaximizeIcon, ArrowLeftIcon, SparklesDiamondIcon, ChevronUpIcon, EllipsisVerticalIcon, EditIcon, TrashIcon } from './icons';
+import { InsightRenderer } from './InsightRenderer';
 
 interface SourcesPanelProps {
     isCollapsed: boolean;
     onToggleCollapse: () => void;
-    sources: Source[];
-    selectedSourceIds: string[];
+    session: Session;
     onToggleSource: (id: string) => void;
     onToggleSelectAll: () => void;
     onAddSourceClick: () => void;
@@ -17,7 +17,10 @@ interface SourcesPanelProps {
     onDeleteSource: (sourceId: string) => void;
     onGenerateGuide: (sourceId: string) => void;
     isProcessingGuide: boolean;
+    onStartDiscussion: (topic: string) => void;
+    onClearHighlight: () => void;
     lang: Language;
+    isProcessingDiscussion: boolean;
 }
 
 const SourceIcon: React.FC<{ type: Source['type'] }> = ({ type }) => {
@@ -33,8 +36,10 @@ const SourceIcon: React.FC<{ type: Source['type'] }> = ({ type }) => {
 const SourceGuideViewer: React.FC<{
     source: Source;
     isProcessing: boolean;
+    onStartDiscussion: (topic: string) => void;
+    isProcessingDiscussion: boolean;
     lang: Language;
-}> = ({ source, isProcessing, lang }) => {
+}> = ({ source, isProcessing, onStartDiscussion, isProcessingDiscussion, lang }) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     if (isProcessing) {
@@ -62,10 +67,15 @@ const SourceGuideViewer: React.FC<{
             {!isCollapsed && (
                 <div className="px-3 pb-3 space-y-4">
                     <p className="text-sm text-slate-300 whitespace-pre-wrap">{source.guide.summary}</p>
-                    <div className="space-y-2">
-                        {source.guide.questions.map((q, i) => (
-                            <button key={i} className="w-full text-left text-sm p-2 bg-slate-700/50 hover:bg-slate-700 rounded-md text-slate-300">
-                                {q}
+                    <div className="flex flex-wrap gap-2">
+                        {(source.guide.keyTopics || []).map((topic, i) => (
+                            <button 
+                                key={i} 
+                                onClick={() => onStartDiscussion(topic)}
+                                disabled={isProcessingDiscussion}
+                                className="text-xs p-1.5 px-2.5 bg-slate-700/50 hover:bg-slate-700 rounded-full text-slate-300 disabled:opacity-50 disabled:cursor-wait"
+                            >
+                                {topic}
                             </button>
                         ))}
                     </div>
@@ -80,14 +90,64 @@ const SourceDetailView: React.FC<{
     onBack: () => void;
     onGenerateGuide: (sourceId: string) => void;
     isProcessingGuide: boolean;
+    onStartDiscussion: (topic: string) => void;
+    session: Session;
+    onClearHighlight: () => void;
     lang: Language;
-}> = ({ source, onBack, onGenerateGuide, isProcessingGuide, lang }) => {
-    
+    isProcessingDiscussion: boolean;
+}> = ({ source, onBack, onGenerateGuide, isProcessingGuide, onStartDiscussion, session, onClearHighlight, lang, isProcessingDiscussion }) => {
+    const contentRef = useRef<HTMLDivElement>(null);
+    const { highlightFragment, insights, isInsightModeActive } = session;
+
     useEffect(() => {
         if (!source.guide) {
             onGenerateGuide(source.id);
         }
     }, [source, onGenerateGuide]);
+
+    useEffect(() => {
+        const contentEl = contentRef.current;
+        if (!contentEl) return;
+
+        // Function to remove existing highlights
+        const clearHighlights = () => {
+            const marks = contentEl.querySelectorAll('mark');
+            marks.forEach(mark => {
+                const parent = mark.parentNode;
+                if(parent) {
+                    while (mark.firstChild) {
+                        parent.insertBefore(mark.firstChild, mark);
+                    }
+                    parent.removeChild(mark);
+                    parent.normalize(); // Merges adjacent text nodes
+                }
+            });
+        };
+        
+        clearHighlights();
+
+        if (highlightFragment && highlightFragment.sourceId === source.id) {
+            const fragmentText = highlightFragment.fragment;
+            const treeWalker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT);
+            let currentNode;
+            while (currentNode = treeWalker.nextNode()) {
+                const nodeText = currentNode.nodeValue || '';
+                const startIndex = nodeText.indexOf(fragmentText);
+                if (startIndex !== -1) {
+                    const range = document.createRange();
+                    range.setStart(currentNode, startIndex);
+                    range.setEnd(currentNode, startIndex + fragmentText.length);
+                    const mark = document.createElement('mark');
+                    mark.className = 'bg-yellow-400 text-black rounded';
+                    range.surroundContents(mark);
+                    mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    break; 
+                }
+            }
+        }
+        
+    }, [highlightFragment, source.id]);
+
 
     const content = Array.isArray(source.content)
         ? source.content.map(m => `${m.sender}: ${m.text}`).join('\n')
@@ -112,11 +172,13 @@ const SourceDetailView: React.FC<{
                 </button>
             </header>
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
-                <SourceGuideViewer source={source} isProcessing={isProcessingGuide} lang={lang} />
+                <SourceGuideViewer source={source} isProcessing={isProcessingGuide} onStartDiscussion={onStartDiscussion} isProcessingDiscussion={isProcessingDiscussion} lang={lang} />
                 <div 
+                    ref={contentRef}
                     className="text-sm text-slate-300 whitespace-pre-wrap prose prose-invert prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ __html: content }}
-                />
+                >
+                    <InsightRenderer text={content} insights={insights || []} isInsightModeActive={isInsightModeActive || false} lang={lang} />
+                </div>
             </div>
         </div>
     );
@@ -187,8 +249,7 @@ const SourceItem: React.FC<{
 export const SourcesPanel: React.FC<SourcesPanelProps> = ({
     isCollapsed,
     onToggleCollapse,
-    sources,
-    selectedSourceIds,
+    session,
     onToggleSource,
     onToggleSelectAll,
     onAddSourceClick,
@@ -197,9 +258,19 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
     isProcessingGuide,
     onRenameSource,
     onDeleteSource,
+    onStartDiscussion,
+    onClearHighlight,
     lang,
+    isProcessingDiscussion,
 }) => {
+    const { sources, selectedSourceIds = [], highlightFragment } = session;
     const [viewingSourceId, setViewingSourceId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (highlightFragment) {
+            setViewingSourceId(highlightFragment.sourceId);
+        }
+    }, [highlightFragment]);
 
     const allSourcesSelected = sources.length > 0 && selectedSourceIds.length === sources.length;
     const viewingSource = sources.find(s => s.id === viewingSourceId);
@@ -222,7 +293,7 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
                     </button>
                 </header>
                 <div className="p-2 space-y-2">
-                    <button onClick={onAddSourceClick} className="w-full aspect-square bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg flex items-center justify-center" title={t('addSource', lang)}>
+                    <button onClick={onAddSourceClick} className="w-full aspect-square bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg flex items-center justify-center" title={t('addSourceTitle', lang)}>
                         <PlusCircleIcon className="w-6 h-6 text-slate-300" />
                     </button>
                     <button onClick={onSearchClick} className="w-full aspect-square bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg flex items-center justify-center" title={t('find', lang)}>
@@ -238,10 +309,14 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
             <aside className={asideClasses}>
                 <SourceDetailView 
                     source={viewingSource}
-                    onBack={() => setViewingSourceId(null)}
+                    onBack={() => { setViewingSourceId(null); onClearHighlight(); }}
                     onGenerateGuide={onGenerateGuide}
                     isProcessingGuide={isProcessingGuide}
+                    onStartDiscussion={onStartDiscussion}
+                    session={session}
+                    onClearHighlight={onClearHighlight}
                     lang={lang}
+                    isProcessingDiscussion={isProcessingDiscussion}
                 />
             </aside>
         );
@@ -290,7 +365,7 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
                         key={source.id}
                         source={source}
                         isSelected={selectedSourceIds.includes(source.id)}
-                        onView={setViewingSourceId}
+                        onView={(id) => { setViewingSourceId(id); onClearHighlight(); }}
                         onToggle={onToggleSource}
                         onRename={onRenameSource}
                         onDelete={onDeleteSource}

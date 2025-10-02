@@ -1,12 +1,12 @@
 
 
-
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Note, SessionProfileId, StudioToolId, Session, ToolSettings, TextStyleId } from '../types';
+import { Note, SessionProfileId, StudioToolId, Session, ToolSettings, TextStyleId, Prompt } from '../types';
 import { t, Language } from '../utils/translations';
-import { XIcon, EllipsisVerticalIcon, PanelRightCloseIcon, PanelRightIcon, FileTextIcon, PlusCircleIcon, FlashcardsIcon, MindMapIcon, PlusIcon, PencilPlusIcon, EditIcon, LayersIcon, FileExportIcon, TrashIcon, SparklesIcon, FileAudioIcon, MaximizeIcon, ArrowLeftIcon, UndoIcon, RedoIcon, BoldIcon, ItalicIcon, LinkIcon, ListIcon, ListOrderedIcon, RemoveFormattingIcon, EmotionAnalysisIcon, TonalityAnalysisIcon } from './icons';
+// FIX: Added BookmarkIcon to the import list.
+import { XIcon, EllipsisVerticalIcon, PanelRightCloseIcon, PanelRightIcon, FileTextIcon, PlusCircleIcon, FlashcardsIcon, MindMapIcon, PlusIcon, PencilPlusIcon, EditIcon, LayersIcon, FileExportIcon, TrashIcon, SparklesIcon, FileAudioIcon, MaximizeIcon, ArrowLeftIcon, UndoIcon, RedoIcon, BoldIcon, ItalicIcon, LinkIcon, ListIcon, ListOrderedIcon, RemoveFormattingIcon, EmotionAnalysisIcon, TonalityAnalysisIcon, BookmarkIcon } from './icons';
 import { studioTools, textStyles } from '../utils/profiles';
+import { PromptLibrary } from './PromptLibrary';
 
 interface StudioPanelProps {
   isCollapsed: boolean;
@@ -23,7 +23,16 @@ interface StudioPanelProps {
   onTriggerTool: (toolId: StudioToolId) => void;
   processingTool: StudioToolId | null;
   onUpdateToolSettings: (toolId: StudioToolId, settings: TextStyleId) => void;
+  prompts: Prompt[];
+  onUsePrompt: (text: string) => void;
+  onUpdatePrompt: (prompt: Prompt) => void;
+  onDeletePrompt: (promptId: string) => void;
+  onOpenPromptWizard: () => void;
+  onExportPrompts: () => void;
+  onImportPrompts: () => void;
 }
+
+type StudioTab = 'tools' | 'notes' | 'prompts';
 
 const ToolCard: React.FC<{ 
     toolId: StudioToolId, 
@@ -82,11 +91,9 @@ const ToolCard: React.FC<{
                                 <button 
                                     key={style.id} 
                                     onClick={() => {
-                                        // FIX: Pass the style ID directly, not as an object.
                                         onUpdateSettings(style.id);
                                         setIsSettingsOpen(false);
                                     }}
-                                    // FIX: Compare settings directly with style ID.
                                     className={`w-full text-left px-3 py-1.5 text-sm  hover:bg-slate-800 ${settings === style.id ? 'text-cyan-400' : 'text-slate-200'}`}
                                 >
                                     {t(style.nameKey, lang)}
@@ -97,7 +104,6 @@ const ToolCard: React.FC<{
                  </div>
             )}
             
-            {/* Tooltip */}
             <div className="absolute top-full mt-2 left-0 w-full p-3 bg-slate-900 text-white text-xs rounded-md shadow-lg z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-200 invisible group-hover:visible">
                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45"></div>
                  <h4 className="font-bold text-sm mb-1 text-slate-100">{t(tool.nameKey, lang)}</h4>
@@ -108,7 +114,6 @@ const ToolCard: React.FC<{
 };
 
 const NoteIcon: React.FC<{note: Note}> = ({note}) => {
-    // FIX: Removed logic for note.icon, as it's no longer part of the Note type.
     switch (note.type) {
         case 'summary': return <FileTextIcon className="w-5 h-5 text-slate-400" />;
         case 'flashcards': return <FlashcardsIcon className="w-5 h-5 text-slate-400" />;
@@ -320,17 +325,14 @@ const NoteDetailView: React.FC<{
 
 
 export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
-  const { isCollapsed, onToggleCollapse, session, lang, onDeleteNote, onRenameNote, onConvertToSource, onConvertAllNotesToSource, onAddNewNote, onUpdateNoteContent, onConfigureToolsClick, onTriggerTool, processingTool, onUpdateToolSettings } = props;
+  const { isCollapsed, onToggleCollapse, session, lang, onDeleteNote, onRenameNote, onConvertToSource, onConvertAllNotesToSource, onAddNewNote, onUpdateNoteContent, onConfigureToolsClick, onTriggerTool, processingTool, onUpdateToolSettings, prompts, onUsePrompt, onUpdatePrompt, onDeletePrompt, onOpenPromptWizard, onExportPrompts, onImportPrompts } = props;
   const [viewingNoteId, setViewingNoteId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<StudioTab>('tools');
 
   const notes = session.notes || [];
   const viewingNote = notes.find(n => n.id === viewingNoteId);
   const activeTools = session.activeTools || [];
   
-  const uniqueGeneratedNoteTypes = useMemo(() => {
-    return [...new Set(notes.map(n => n.type))];
-  }, [notes]);
-
   const handleAddNoteClick = () => {
     const newNoteId = onAddNewNote();
     setViewingNoteId(newNoteId);
@@ -340,6 +342,14 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
     relative z-20 flex-shrink-0 bg-[var(--bg-surface)] rounded-lg shadow-md flex flex-col
     transition-all duration-300 ease-in-out
     ${isCollapsed ? 'w-16 basis-16' : (viewingNote ? 'w-[50vw] max-w-2xl basis-[50vw]' : 'w-80 basis-80')}`;
+
+  const tabButtonClass = (tab: StudioTab) => 
+    `px-3 py-2 text-sm font-semibold rounded-md transition-colors ${
+      activeTab === tab 
+      ? 'bg-slate-700 text-white' 
+      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+    }`;
+
 
   return (
     <aside className={asideClasses}>
@@ -359,9 +369,6 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
                 {!isCollapsed && (
                     <div className="flex items-center gap-2">
                          <h2 className="text-xl font-bold text-slate-100">{t('studio', lang)}</h2>
-                         <button onClick={onConfigureToolsClick} className="p-1 text-slate-400 hover:text-white rounded-full hover:bg-slate-700/50" title={t('configureTools', lang)}>
-                             <EditIcon className="w-4 h-4"/>
-                         </button>
                     </div>
                 )}
                 <div className={`${isCollapsed ? 'w-full flex justify-center' : ''}`}>
@@ -376,79 +383,79 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
                 </header>
 
                 {isCollapsed ? (
-                    <div className="flex-grow flex flex-col items-center justify-between p-2">
-                        <div className="w-full space-y-2">
-                            {activeTools.map(toolId => {
-                                const tool = studioTools[toolId];
-                                if (!tool) return null;
-                                return (
-                                <button key={toolId} onClick={() => onTriggerTool(toolId)} className="w-full aspect-square relative group bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-lg flex items-center justify-center" title={t(tool.nameKey, lang)}>
-                                    <tool.icon className="w-6 h-6 text-slate-300" />
-                                    <div className="absolute bottom-1 right-1 bg-slate-600 rounded-full p-0.5">
-                                        <PlusIcon className="w-2 h-2 text-slate-200" />
-                                    </div>
-                                </button>
-                                );
-                            })}
-                        </div>
-                        
-                        <div className="w-full space-y-3">
-                            {uniqueGeneratedNoteTypes.map(type => {
-                                const note = notes.find(n => n.type === type);
-                                if (!note) return null;
-                                return (
-                                    <div key={type} className="w-full flex justify-center" title={note.title}>
-                                        <NoteIcon note={note} />
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <div className="w-full mt-4">
-                            <button onClick={handleAddNoteClick} className="w-10 h-10 mx-auto bg-slate-200 hover:bg-white text-slate-800 font-semibold rounded-full transition-colors flex items-center justify-center" title={t('addNote', lang)}>
-                                <PencilPlusIcon className="w-5 h-5" />
-                            </button>
-                        </div>
+                    <div className="flex-grow flex flex-col items-center justify-center p-2 space-y-4">
+                        <button onClick={() => { onToggleCollapse(); setActiveTab('tools')}} className="w-full aspect-square text-slate-300 hover:bg-slate-700/50 rounded-lg flex items-center justify-center"><SparklesIcon className="w-6 h-6"/></button>
+                        <button onClick={() => { onToggleCollapse(); setActiveTab('notes')}} className="w-full aspect-square text-slate-300 hover:bg-slate-700/50 rounded-lg flex items-center justify-center"><FileTextIcon className="w-6 h-6"/></button>
+                        <button onClick={() => { onToggleCollapse(); setActiveTab('prompts')}} className="w-full aspect-square text-slate-300 hover:bg-slate-700/50 rounded-lg flex items-center justify-center"><BookmarkIcon className="w-6 h-6"/></button>
                     </div>
                 ) : (
                 <>
-                    <div className="p-4 flex-grow overflow-y-auto">
-                        <div className="grid grid-cols-2 gap-3">
-                            {activeTools.map(toolId => (
-                                <ToolCard 
-                                    key={toolId} 
-                                    toolId={toolId} 
-                                    onClick={() => onTriggerTool(toolId)} 
-                                    lang={lang}
-                                    isLoading={processingTool === toolId}
-                                    settings={toolId === 'textStyle' ? session.toolSettings?.textStyle : undefined}
-                                    onUpdateSettings={(newSettings) => onUpdateToolSettings(toolId, newSettings)}
-                                />
-                            ))}
-                        </div>
-                        
-                        <div className="mt-6 pt-4 border-t border-[var(--border-color)]">
-                            <h3 className="px-2 mb-2 text-sm font-semibold text-slate-400">{t('generatedNotes', lang)}</h3>
-                            <div className="space-y-1">
-                                {notes.map(note => (
-                                    <NoteItem 
-                                        key={note.id}
-                                        note={note}
-                                        lang={lang}
-                                        onView={setViewingNoteId}
-                                        onDelete={onDeleteNote}
-                                        onConvertToSource={onConvertToSource}
-                                        onConvertAllNotesToSource={onConvertAllNotesToSource}
-                                    />
-                                ))}
-                            </div>
+                    <div className="p-2 border-b border-[var(--border-color)]">
+                        <div className="flex items-center justify-center bg-slate-800 p-1 rounded-lg">
+                            <button className={tabButtonClass('tools')} onClick={() => setActiveTab('tools')}>{t('tools', lang)}</button>
+                            <button className={tabButtonClass('notes')} onClick={() => setActiveTab('notes')}>{t('notes', lang)}</button>
+                            <button className={tabButtonClass('prompts')} onClick={() => setActiveTab('prompts')}>{t('prompts', lang)}</button>
                         </div>
                     </div>
-                    <div className="p-4 border-t border-[var(--border-color)]">
-                        <button onClick={handleAddNoteClick} className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-slate-200 hover:bg-white text-slate-800 font-semibold rounded-full transition-colors">
-                            <EditIcon className="w-4 h-4" />
-                            <span>{t('addNote', lang)}</span>
-                        </button>
+
+                    <div className="flex-grow overflow-y-auto">
+                        {activeTab === 'tools' && (
+                             <div className="p-4">
+                                <div className="flex justify-end mb-4">
+                                    <button onClick={onConfigureToolsClick} className="text-xs font-semibold text-slate-400 hover:text-white p-2 rounded-md hover:bg-slate-700/50 flex items-center gap-1" title={t('configureTools', lang)}>
+                                        <EditIcon className="w-3 h-3"/> {t('configureTools', lang)}
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {activeTools.map(toolId => (
+                                        <ToolCard 
+                                            key={toolId} 
+                                            toolId={toolId} 
+                                            onClick={() => onTriggerTool(toolId)} 
+                                            lang={lang}
+                                            isLoading={processingTool === toolId}
+                                            settings={toolId === 'textStyle' ? session.toolSettings?.textStyle : undefined}
+                                            onUpdateSettings={(newSettings) => onUpdateToolSettings(toolId, newSettings)}
+                                        />
+                                    ))}
+                                </div>
+                             </div>
+                        )}
+                        {activeTab === 'notes' && (
+                            <div className="p-4">
+                                 <div className="space-y-1">
+                                    {notes.map(note => (
+                                        <NoteItem 
+                                            key={note.id}
+                                            note={note}
+                                            lang={lang}
+                                            onView={setViewingNoteId}
+                                            onDelete={onDeleteNote}
+                                            onConvertToSource={onConvertToSource}
+                                            onConvertAllNotesToSource={onConvertAllNotesToSource}
+                                        />
+                                    ))}
+                                </div>
+                                <div className="mt-4">
+                                    <button onClick={handleAddNoteClick} className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-md transition-colors">
+                                        <PlusIcon className="w-4 h-4" />
+                                        <span>{t('addNote', lang)}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        {activeTab === 'prompts' && (
+                            <PromptLibrary
+                                prompts={prompts}
+                                onUsePrompt={onUsePrompt}
+                                onUpdatePrompt={onUpdatePrompt}
+                                onDeletePrompt={onDeletePrompt}
+                                onOpenWizard={onOpenPromptWizard}
+                                onExportPrompts={onExportPrompts}
+                                onImportPrompts={onImportPrompts}
+                                lang={lang}
+                            />
+                        )}
                     </div>
                 </>
                 )}

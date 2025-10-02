@@ -1,17 +1,43 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language, t } from "./translations";
-import { ActionItem, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, Source, Message, SourceGuide, TextStyleId } from "../types";
+import { ActionItem, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, Source, Message, SourceGuide, TextStyleId, Citation, Insight } from "../types";
 
 const getAIClient = (apiKey: string) => new GoogleGenAI({ apiKey });
 
 const handleAIError = (error: unknown, context: string): never => {
     console.error(`Error calling Gemini API for ${context}:`, error);
+    // Re-throw the original error to allow status code inspection
+    if (error instanceof Error) {
+        throw error;
+    }
     throw new Error(`Failed to get ${context} from AI.`);
 };
 
 const safelyGetText = (response: GenerateContentResponse): string => {
-    return response.text.trim();
+    try {
+        // The .text getter is the recommended way.
+        const text = response.text;
+        if (typeof text === 'string') {
+            return text.trim();
+        }
+    } catch (e) {
+        // In case the .text getter itself throws an error, we fall back.
+        console.warn("response.text getter failed, falling back to manual parsing.", e);
+    }
+
+    // Fallback to manually parsing the response structure if .text is not available or fails.
+    try {
+        const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (typeof text === 'string') {
+            return text.trim();
+        }
+    } catch (e) {
+        console.error("Error during manual parsing of Gemini response:", e);
+    }
+
+    console.warn("Could not extract text from Gemini response. Returning empty string. Full response:", JSON.stringify(response, null, 2));
+    return ''; // Return an empty string if no text can be extracted
 };
 
 export const getSummary = async (apiKey: string, text: string, lang: Language): Promise<string> => {
@@ -197,7 +223,7 @@ const agentExpertiseInstructions: Record<AIAgentExpertise, string> = {
     pr_specialist: "As a PR Specialist, focus on public perception, brand reputation, key messaging, and the tone of communication. Analyze the text for potential PR risks or opportunities. Suggest how information could be framed for a press release or public statement."
 };
 
-export const getAgentResponse = async (apiKey: string, context: string, agents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] }, lang: Language, chatHistory: AIChatMessage[]): Promise<string> => {
+export const getAgentResponse = async (apiKey: string, context: string, agents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] }, lang: Language, chatHistory: AIChatMessage[], discussionTopic?: string): Promise<string> => {
     try {
         const ai = getAIClient(apiKey);
         
@@ -212,6 +238,10 @@ export const getAgentResponse = async (apiKey: string, context: string, agents: 
         ${expertiseInstructions}
         You must apply this expertise strictly within the following domains: ${domainNames}.
         You have been provided with a set of source documents as the primary context. Answer the user's questions based ONLY on the provided sources, through the combined lens of your active roles and domains. If the answer is not in the sources, say that you cannot find the information in the provided context. Respond in ${lang}.`;
+        
+        if (discussionTopic) {
+            fullSystemInstruction += `\n\nYour current focus is on the topic: "${discussionTopic}". Frame your answers in relation to this topic.`;
+        }
 
         const contents: AIChatMessage[] = [
             { role: 'user', parts: [{ text: `Here are the source documents for context:\n\n---\n${context}\n---` }] },
@@ -281,7 +311,7 @@ export const extractEntities = async (apiKey: string, text: string, lang: Langua
 export const getSourceGuide = async (apiKey: string, content: string, lang: Language): Promise<SourceGuide> => {
     try {
         const ai = getAIClient(apiKey);
-        const prompt = `Based on the following text content, generate a concise summary and a list of 4-5 key questions a user might ask about it. The response should be in ${lang}.
+        const prompt = `Based on the following text content, generate a concise one-paragraph summary and a list of 3-5 main key topics discussed in the text. The response should be in ${lang}.
 
         Text Content:
         ---
@@ -301,15 +331,15 @@ export const getSourceGuide = async (apiKey: string, content: string, lang: Lang
                             type: Type.STRING,
                             description: "A concise summary of the provided text."
                         },
-                        questions: {
+                        keyTopics: {
                             type: Type.ARRAY,
                             items: {
                                 type: Type.STRING,
-                                description: "A key question about the text."
+                                description: "A key topic from the text."
                             }
                         }
                     },
-                    required: ["summary", "questions"]
+                    required: ["summary", "keyTopics"]
                 }
             }
         });
@@ -318,6 +348,31 @@ export const getSourceGuide = async (apiKey: string, content: string, lang: Lang
         return JSON.parse(jsonText);
     } catch (error) {
         handleAIError(error, 'source guide');
+    }
+};
+
+export const getDiscussionForTopic = async (apiKey: string, topic: string, context: string, lang: Language): Promise<string> => {
+    try {
+        const ai = getAIClient(apiKey);
+        const prompt = `You are a research assistant. Your task is to create a structured summary about the topic "${topic}" based *only* on the provided source text. 
+        Structure your response using markdown for headings and lists.
+        Crucially, for every piece of information you take from the source text, you MUST include an inline citation pointing to the exact sentence or phrase you are referencing. Use the format {{cite: "the exact quote from the source text here"}}. Do not summarize without citing.
+        Respond in ${lang}.
+
+        Source Text:
+        ---
+        ${context}
+        ---
+        `;
+
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+        
+        return safelyGetText(response);
+    } catch (error) {
+        handleAIError(error, 'discussion for topic');
     }
 };
 
@@ -398,5 +453,67 @@ export const getGrammarCheck = async (apiKey: string, text: string, lang: Langua
         return safelyGetText(response);
     } catch (error) {
         handleAIError(error, 'grammar check');
+    }
+};
+
+export const getPromptWizardResponse = async (apiKey: string, history: AIChatMessage[], lang: Language): Promise<string> => {
+    try {
+        const ai = getAIClient(apiKey);
+        const systemInstruction = `You are an AI assistant expert in creating and refining prompts for large language models. Your goal is to help the user craft the perfect prompt for their task. You can generate new prompts from scratch based on a user's goal, or you can take an existing prompt and improve it by making it more specific, adding context, defining the desired format, or suggesting alternative phrasings. Always be helpful and collaborative. Respond in ${lang}.`;
+
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: history,
+            config: {
+                systemInstruction: systemInstruction,
+            }
+        });
+
+        return safelyGetText(response);
+    } catch (error) {
+        handleAIError(error, 'prompt wizard');
+    }
+};
+
+export const getInsightsForText = async (apiKey: string, text: string, lang: Language): Promise<Insight[]> => {
+    try {
+        const ai = getAIClient(apiKey);
+        const prompt = `You are a research analyst. Analyze the following text. Your task is to extract key entities, terms, people, places, dates, or events. For each extracted term, provide a very brief, one-sentence definition or context. Respond in ${lang}.
+
+        Text Content:
+        ---
+        ${text}
+        ---
+        `;
+
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            term: {
+                                type: Type.STRING,
+                                description: "The extracted term, name, place, event, or date."
+                            },
+                            definition: {
+                                type: Type.STRING,
+                                description: "A brief, one-sentence definition or context for the term."
+                            }
+                        },
+                        required: ["term", "definition"]
+                    }
+                }
+            }
+        });
+        
+        const jsonText = safelyGetText(response);
+        return JSON.parse(jsonText);
+    } catch (error) {
+        handleAIError(error, 'insights extraction');
     }
 };

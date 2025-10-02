@@ -1,20 +1,27 @@
 
-
 import React from 'react';
 import { translations } from './utils/translations';
+
+export interface Citation {
+  index: number;
+  sourceId: string;
+  fragment: string;
+}
 
 export interface Message {
   id: string;
   text: string;
   timestamp: number; // Seconds from the start of the recording, or -1 for chat messages
   sender: 'user' | 'interlocutor' | 'assistant';
+  discussion?: boolean;
+  citations?: Citation[];
 }
 
 export type SourceType = 'transcription' | 'audio' | 'file' | 'url';
 
 export interface SourceGuide {
   summary: string;
-  questions: string[];
+  keyTopics: string[];
 }
 
 export interface Source {
@@ -32,6 +39,14 @@ export interface Note {
   content: string;
   type: string; // e.g., 'summary', 'flashcards'
   time: string; // ISO date string
+}
+
+export interface Prompt {
+  id: string;
+  name: string;
+  text: string;
+  category: string;
+  createdAt: string; // ISO date string
 }
 
 export interface SpeakerProfile {
@@ -201,6 +216,11 @@ export interface AgentConfig {
     domains: AIAgentDomain[];
 }
 
+export interface Insight {
+  term: string;
+  definition: string;
+}
+
 export interface Session {
   id:string;
   name: string;
@@ -216,6 +236,9 @@ export interface Session {
   activeTools?: StudioToolId[];
   toolSettings?: ToolSettings;
   agentConfig: AgentConfig;
+  highlightFragment?: { sourceId: string; fragment: string } | null;
+  insights?: Insight[];
+  isInsightModeActive?: boolean;
 }
 
 export interface LoadedSession extends Session {
@@ -248,6 +271,7 @@ export interface SpeechRecognitionErrorEvent {
 export interface SpeechRecognition {
   continuous: boolean;
   interimResults: boolean;
+
   lang: string;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onend: (() => void) | null;

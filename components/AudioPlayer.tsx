@@ -83,7 +83,7 @@ export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(({ blo
   }
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-4 p-2 bg-slate-800/70 backdrop-blur-md rounded-full shadow-lg border border-slate-700">
        <audio
         ref={(node) => {
             localAudioRef.current = node;
@@ -102,19 +102,19 @@ export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(({ blo
         onClick={handlePlayPause}
         className="p-2 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded-full text-[var(--text-primary)] transition-colors"
       >
-        {isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />}
+        {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
       </button>
       <div className="flex-grow flex items-center gap-3">
-          <span className="text-sm font-mono text-[var(--text-secondary)]">{formatTime(currentTime)}</span>
+          <span className="text-xs font-mono text-[var(--text-secondary)]">{formatTime(currentTime)}</span>
           <input 
               type="range" 
               min="0"
               max={duration || 1}
               value={currentTime}
               onChange={handleSeek}
-              className="w-full h-2 bg-[var(--bg-element)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-primary)]"
+              className="w-full h-1.5 bg-[var(--bg-element)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-primary)]"
           />
-          <span className="text-sm font-mono text-[var(--text-secondary)]">{formatTime(duration)}</span>
+          <span className="text-xs font-mono text-[var(--text-secondary)]">{formatTime(duration)}</span>
       </div>
     </div>
   );

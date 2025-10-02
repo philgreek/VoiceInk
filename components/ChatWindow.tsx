@@ -1,8 +1,9 @@
 
 import React, { useRef, useEffect, forwardRef, useState, useMemo } from 'react';
-import type { Message, Settings, Entity, EntityType, Session } from '../types';
+import type { Message, Settings, Entity, EntityType, Session, Citation } from '../types';
 import { MicIcon, FileAudioIcon, BookmarkIcon, ClipboardIcon, ThumbsUpIcon, ThumbsDownIcon, CheckIcon } from './icons';
 import { t, Language } from '../utils/translations';
+import { InsightRenderer } from './InsightRenderer';
 
 interface ChatWindowProps {
   session: Session;
@@ -16,57 +17,8 @@ interface ChatWindowProps {
   playbackTime: number;
   onSeekAudio: (time: number) => void;
   onSaveToNote: (title: string, content: string, type: string) => void;
+  onCitationClick: (citation: Citation) => void;
 }
-
-const entityColors: Record<EntityType, string> = {
-    PERSON: 'border-b-2 border-blue-400',
-    ORGANIZATION: 'border-b-2 border-yellow-400',
-    DATE: 'border-b-2 border-green-400',
-    LOCATION: 'border-b-2 border-pink-400',
-    MONEY: 'border-b-2 border-teal-400',
-    OTHER: 'border-b-2 border-gray-400',
-};
-
-const renderTextWithEntities = (text: string, entities: Entity[] | undefined, lang: Language): React.ReactNode => {
-    if (!entities || entities.length === 0) {
-        return text;
-    }
-
-    const sortedEntities = [...entities]
-        .filter(e => text.includes(e.text))
-        .sort((a, b) => text.indexOf(a.text) - text.indexOf(b.text));
-
-    let lastIndex = 0;
-    const parts: React.ReactNode[] = [];
-
-    sortedEntities.forEach((entity, i) => {
-        const startIndex = text.indexOf(entity.text, lastIndex);
-        if (startIndex === -1) return;
-
-        if (startIndex > lastIndex) {
-            parts.push(text.substring(lastIndex, startIndex));
-        }
-
-        parts.push(
-            <span
-                key={`${entity.text}-${i}`}
-                className={`cursor-pointer rounded-sm px-0.5 ${entityColors[entity.type]}`}
-                title={t(`entity${entity.type}` as any, lang)}
-            >
-                {entity.text}
-            </span>
-        );
-
-        lastIndex = startIndex + entity.text.length;
-    });
-
-    if (lastIndex < text.length) {
-        parts.push(text.substring(lastIndex));
-    }
-
-    return parts;
-};
-
 
 const EditableMessage: React.FC<{
     message: Message;
@@ -121,15 +73,13 @@ const MessageRow: React.FC<{
     settings: Settings;
     isActive: boolean;
     isEditing: boolean;
-    entities: Entity[] | undefined;
+    session: Session;
     lang: Language;
     onSeekAudio: (time: number) => void;
     onUpdateMessage: (id: string, newText: string) => void;
     onCancelEdit: () => void;
-}> = ({ message, settings, isActive, isEditing, entities, lang, onSeekAudio, onUpdateMessage, onCancelEdit }) => {
+}> = ({ message, settings, isActive, isEditing, session, lang, onSeekAudio, onUpdateMessage, onCancelEdit }) => {
     const profile = settings[message.sender as 'user' | 'interlocutor'];
-    
-    const renderedContent = useMemo(() => renderTextWithEntities(message.text, entities, lang), [message.text, entities, lang]);
     
     return (
         <div data-message-id={message.id} className={`flex gap-3 p-1 rounded-md ${isActive ? 'bg-slate-800/50' : ''}`}>
@@ -147,7 +97,12 @@ const MessageRow: React.FC<{
                    onCancel={onCancelEdit}
                  />
              ) : (
-                 <p>{renderedContent}</p>
+                <InsightRenderer 
+                    text={message.text} 
+                    insights={session.insights || []} 
+                    isInsightModeActive={session.isInsightModeActive || false} 
+                    lang={lang} 
+                />
              )}
            </div>
         </div>
@@ -164,8 +119,9 @@ const UserQueryMessage: React.FC<{ message: Message; settings: Settings }> = ({ 
     );
 };
 
-const AssistantMessage: React.FC<{ message: Message; settings: Settings; lang: Language; onSaveToNote: (title: string, content: string, type: string) => void; }> = ({ message, lang, onSaveToNote }) => {
+const AssistantMessage: React.FC<{ message: Message; settings: Settings; lang: Language; onSaveToNote: (title: string, content: string, type: string) => void; onCitationClick: (citation: Citation) => void; session: Session; }> = ({ message, lang, onSaveToNote, onCitationClick, session }) => {
     const [copied, setCopied] = useState(false);
+    const contentRef = useRef<HTMLDivElement>(null);
     
     const handleCopy = () => {
         navigator.clipboard.writeText(message.text).then(() => {
@@ -176,48 +132,100 @@ const AssistantMessage: React.FC<{ message: Message; settings: Settings; lang: L
     
     const buttonClass = "p-2 rounded-md text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors flex items-center gap-2";
 
+    useEffect(() => {
+        if (!message.discussion) return;
+        const delegateClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'BUTTON' && target.dataset.citationIndex) {
+                const index = parseInt(target.dataset.citationIndex, 10);
+                const citation = message.citations?.[index];
+                if (citation) {
+                    onCitationClick(citation);
+                }
+            }
+        };
+        const contentEl = contentRef.current;
+        contentEl?.addEventListener('click', delegateClick);
+        return () => contentEl?.removeEventListener('click', delegateClick);
+    }, [message.discussion, message.citations, onCitationClick]);
+    
+    const renderedHTML = useMemo(() => {
+        if (!message.discussion) return message.text;
+        
+        return message.text.replace(/\{\{CITATION:(\d+)\}\}/g, (match, indexStr) => {
+            const index = parseInt(indexStr, 10);
+            const citation = message.citations?.[index];
+            if (citation) {
+                return `<button class="inline-block align-middle mx-0.5 w-5 h-5 text-xs bg-slate-600 text-white rounded-full hover:bg-slate-500 transition-colors" data-citation-index="${index}">${citation.index}</button>`;
+            }
+            return '';
+        });
+    }, [message.text, message.discussion, message.citations]);
+
+    const isThinking = message.text === '...';
+
     return (
         <div className="p-4 sm:p-6 my-2">
             <div className="p-4 bg-slate-800/50 rounded-lg">
-                <div className="text-slate-300 whitespace-pre-wrap prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: message.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}>
-                </div>
-                <div className="mt-4 pt-4 border-t border-slate-700/50 flex items-center gap-2">
-                    <button className={buttonClass} onClick={() => onSaveToNote(message.text.substring(0, 30) + '...', message.text, 'assistantResponse')}>
-                        <BookmarkIcon className="w-4 h-4" />
-                        <span className="text-xs font-semibold">{t('saveToNote', lang)}</span>
-                    </button>
-                    <button onClick={handleCopy} className={buttonClass} title={t('copy', lang)}>
-                        {copied ? <CheckIcon className="w-4 h-4 text-green-500" /> : <ClipboardIcon className="w-4 h-4" />}
-                    </button>
-                    <div className="flex-grow" />
-                    <button className={buttonClass} title={t('goodResponse', lang)}>
-                        <ThumbsUpIcon className="w-4 h-4" />
-                    </button>
-                    <button className={buttonClass} title={t('badResponse', lang)}>
-                        <ThumbsDownIcon className="w-4 h-4" />
-                    </button>
-                </div>
+                {isThinking ? (
+                    <div className="flex items-center gap-3 text-slate-400">
+                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
+                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
+                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-semibold">{t('agentThinking', lang)}</span>
+                    </div>
+                ) : (
+                    <>
+                        {message.discussion ? (
+                            <div 
+                                ref={contentRef}
+                                className="text-slate-300 whitespace-pre-wrap prose prose-invert prose-sm max-w-none" 
+                                dangerouslySetInnerHTML={{ __html: renderedHTML }}
+                            />
+                        ) : (
+                             <div className="text-slate-300 whitespace-pre-wrap prose prose-invert prose-sm max-w-none">
+                                <InsightRenderer text={message.text} insights={session.insights || []} isInsightModeActive={session.isInsightModeActive || false} lang={lang} />
+                            </div>
+                        )}
+
+                        <div className="mt-4 pt-4 border-t border-slate-700/50 flex items-center gap-2">
+                            <button className={buttonClass} onClick={() => onSaveToNote(message.text.substring(0, 30) + '...', message.text, 'assistantResponse')}>
+                                <BookmarkIcon className="w-4 h-4" />
+                                <span className="text-xs font-semibold">{t('saveToNote', lang)}</span>
+                            </button>
+                            <button onClick={handleCopy} className={buttonClass} title={t('copy', lang)}>
+                                {copied ? <CheckIcon className="w-4 h-4 text-green-500" /> : <ClipboardIcon className="w-4 h-4" />}
+                            </button>
+                            <div className="flex-grow" />
+                            <button className={buttonClass} title={t('goodResponse', lang)}>
+                                <ThumbsUpIcon className="w-4 h-4" />
+                            </button>
+                            <button className={buttonClass} title={t('badResponse', lang)}>
+                                <ThumbsDownIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
 };
 
-const TranscriptionCard: React.FC<Omit<ChatWindowProps, 'session' | 'interimTranscript' | 'isRecording' | 'isProcessingFile' | 'onSaveToNote'> & { messages: Message[], settings: Settings, onSaveToNote: (title: string, content: string, type: string) => void; entities?: Entity[] }> = ({
+const TranscriptionCard: React.FC<Omit<ChatWindowProps, 'session' | 'interimTranscript' | 'isRecording' | 'isProcessingFile' | 'onSaveToNote' | 'onCitationClick'> & { messages: Message[], session: Session, onSaveToNote: (title: string, content: string, type: string) => void; }> = ({
     messages,
-    settings,
+    session,
     editingMessageId,
     onUpdateMessage,
     onCancelEdit,
     lang,
     playbackTime,
     onSeekAudio,
-    entities,
     onSaveToNote,
 }) => {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = () => {
-        const fullText = messages.map(msg => `${settings[msg.sender as 'user' | 'interlocutor'].initial}: ${msg.text}`).join('\n');
+        const fullText = messages.map(msg => `${session.settings[msg.sender as 'user' | 'interlocutor'].initial}: ${msg.text}`).join('\n');
         navigator.clipboard.writeText(fullText).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
@@ -225,7 +233,7 @@ const TranscriptionCard: React.FC<Omit<ChatWindowProps, 'session' | 'interimTran
     };
     
     const handleSave = () => {
-        const fullText = messages.map(msg => `${settings[msg.sender as 'user' | 'interlocutor'].initial}: ${msg.text}`).join('\n');
+        const fullText = messages.map(msg => `${session.settings[msg.sender as 'user' | 'interlocutor'].initial}: ${msg.text}`).join('\n');
         onSaveToNote(t('transcription', lang), fullText, 'transcription');
     };
 
@@ -245,10 +253,10 @@ const TranscriptionCard: React.FC<Omit<ChatWindowProps, 'session' | 'interimTran
                             <MessageRow
                                 key={msg.id}
                                 message={msg}
-                                settings={settings}
+                                settings={session.settings}
                                 isActive={isActive}
                                 isEditing={isEditing}
-                                entities={entities}
+                                session={session}
                                 lang={lang}
                                 onSeekAudio={onSeekAudio}
                                 onUpdateMessage={onUpdateMessage}
@@ -290,10 +298,10 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
     playbackTime,
     onSeekAudio,
     onSaveToNote,
+    onCitationClick,
 }, ref) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
-  const { messages, settings, analysisResult } = session;
-  const entities = analysisResult?.entities;
+  const { messages, settings } = session;
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -332,21 +340,20 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
         {transcriptionMessages.length > 0 && (
             <TranscriptionCard
                 messages={transcriptionMessages}
-                settings={settings}
+                session={session}
                 editingMessageId={editingMessageId}
                 onUpdateMessage={onUpdateMessage}
                 onCancelEdit={onCancelEdit}
                 lang={lang}
                 playbackTime={playbackTime}
                 onSeekAudio={onSeekAudio}
-                entities={entities}
                 onSaveToNote={onSaveToNote}
             />
         )}
         
         {chatMessages.map((msg) => {
             if (msg.sender === 'assistant') {
-                return <AssistantMessage key={msg.id} message={msg} settings={settings} lang={lang} onSaveToNote={onSaveToNote} />;
+                return <AssistantMessage key={msg.id} message={msg} settings={settings} lang={lang} onSaveToNote={onSaveToNote} onCitationClick={onCitationClick} session={session} />;
             } else { 
                 return <UserQueryMessage key={msg.id} message={msg} settings={settings} />;
             }

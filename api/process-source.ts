@@ -1,5 +1,5 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import formidable from "formidable";
 import fs from "fs";
 
@@ -22,6 +22,28 @@ const processFile = async (req: any): Promise<{ fields: formidable.Fields; files
   });
 };
 
+const safelyGetTextFromResponse = (response: GenerateContentResponse): string => {
+    try {
+        const text = response.text;
+        if (typeof text === 'string') {
+            return text.trim();
+        }
+    } catch (e) {
+        console.warn("response.text getter failed in API route, falling back.", e);
+    }
+    try {
+        const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (typeof text === 'string') {
+            return text.trim();
+        }
+    } catch (e) {
+        console.error("Error during manual parsing in API route:", e);
+    }
+    console.warn("Could not extract text from Gemini response in API route. Returning empty string.");
+    return '';
+};
+
+
 const transcribeAudio = async (apiKey: string, filePath: string, mimeType: string) => {
     const ai = new GoogleGenAI({ apiKey });
     const audioData = fs.readFileSync(filePath).toString("base64");
@@ -34,7 +56,16 @@ const transcribeAudio = async (apiKey: string, filePath: string, mimeType: strin
         contents: { parts: [audioPart, textPart] },
     });
 
-    const transcription = response.text.trim();
+    const transcription = safelyGetTextFromResponse(response);
+    if (!transcription) {
+        console.warn("Transcription from Gemini was empty.");
+        return [{
+            id: `msg-${Date.now()}`,
+            sender: 'interlocutor',
+            text: '[Transcription failed]',
+            timestamp: 0,
+        }];
+    }
     return [{
         id: `msg-${Date.now()}`,
         sender: 'interlocutor',

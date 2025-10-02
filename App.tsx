@@ -1,8 +1,7 @@
 
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
-import { Message, Session, Settings, LoadedSession, SelectionContext, AnalysisResult, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, InsightsSectionState, Source, SourceType, SessionProfileId, Note, StudioToolId, ToolSettings, AgentConfig, TextStyleId } from './types';
+import { Message, Session, Settings, Insight, Source, SessionProfileId, Note, StudioToolId, Citation, SelectionContext, SourceType, AIChatMessage } from './types';
 import { Header } from './components/Header';
 import { ChatWindow } from './components/ChatWindow';
 import { TranscriptionControls } from './components/TranscriptionControls';
@@ -16,17 +15,20 @@ import { produce } from 'immer';
 import { t, Language } from './utils/translations';
 import { useHistoryState } from './hooks/useHistoryState';
 import { useSessionHistory } from './hooks/useSessionHistory';
+import { usePrompts } from './hooks/usePrompts';
 import { AudioPlayer } from './components/AudioPlayer';
 import introJs from 'intro.js';
-import { getAgentResponse, getSourceGuide, getEmotionAnalysis, getTonalityAnalysis, getStyledText, getBrainstormIdeas, getGrammarCheck } from './utils/gemini';
+import { getAgentResponse, getSourceGuide, getEmotionAnalysis, getTonalityAnalysis, getStyledText, getBrainstormIdeas, getGrammarCheck, getDiscussionForTopic, getInsightsForText } from './utils/gemini';
 import { SourcesPanel } from './components/SourcesPanel';
 import { AddSourceModal } from './components/AddSourceModal';
 import { MainAIChatInput } from './components/MainAIChatInput';
 import { TextEditorToolbar } from './components/TextEditorToolbar';
 import { RenameSourceModal } from './components/RenameSourceModal';
 import { SearchSourcesModal } from './components/SearchSourcesModal';
-import { profiles, studioTools } from './utils/profiles';
+import { profiles } from './utils/profiles';
 import { StudioConfigModal } from './components/StudioConfigModal';
+import { PromptWizardModal } from './components/PromptWizardModal';
+import { SavePromptModal } from './components/SavePromptModal';
 import { RefreshCwIcon } from './components/icons';
 import JSZip from 'jszip';
 
@@ -68,7 +70,10 @@ const getInitialSession = (): Session => ({
     toolSettings: {
         textStyle: 'scientific'
     },
-    agentConfig: { expertise: [], domains: [] }
+    agentConfig: { expertise: [], domains: [] },
+    highlightFragment: null,
+    insights: [],
+    isInsightModeActive: false,
 });
 
 
@@ -96,11 +101,17 @@ const App: React.FC = () => {
   const [showSearchSourcesModal, setShowSearchSourcesModal] = useState(false);
   const [sourceToRename, setSourceToRename] = useState<Source | null>(null);
   const [showStudioConfigModal, setShowStudioConfigModal] = useState(false);
+  const [showPromptWizardModal, setShowPromptWizardModal] = useState(false);
+  const [showSavePromptModal, setShowSavePromptModal] = useState(false);
+
 
   // UI interaction state
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [mainInputText, setMainInputText] = useState('');
+  const [promptToSave, setPromptToSave] = useState<string | null>(null);
+
   
   // AI and Data state
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(() => sessionStorage.getItem('geminiApiKey'));
@@ -108,10 +119,17 @@ const App: React.FC = () => {
   const [isProcessingSource, setIsProcessingSource] = useState(false);
   const [isProcessingGuide, setIsProcessingGuide] = useState(false);
   const [processingTool, setProcessingTool] = useState<StudioToolId | null>(null);
+  const [isProcessingInsights, setIsProcessingInsights] = useState(false);
+
+  // Discussion state
+  const [activeDiscussionTopic, setActiveDiscussionTopic] = useState<string | null>(null);
+  const [isProcessingDiscussion, setIsProcessingDiscussion] = useState(false);
   
   const chatWindowRef = useRef<HTMLDivElement>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
+  const promptImportFileRef = useRef<HTMLInputElement>(null);
   const { sessions, saveSession, deleteSession, getSessionAudio, importSession } = useSessionHistory();
+  const { prompts, addPrompt, updatePrompt, deletePrompt, importPrompts } = usePrompts();
   const lang = session.settings.language as Language;
   
   // Debounced auto-save
@@ -191,13 +209,15 @@ const App: React.FC = () => {
         resetSession(newSession);
         setLoadedAudio(null);
         setPlaybackTime(0);
+        setMainInputText('');
+        setActiveDiscussionTopic(null);
 
         if (startRecording) {
-            handleStart();
+            handleContinueRecording();
         }
     };
     
-    const handleStart = async () => {
+    const handleContinueRecording = async () => {
         if (!isSpeechRecognitionSupported) {
             alert("Speech Recognition is not supported in your browser.");
             return;
@@ -240,13 +260,18 @@ const App: React.FC = () => {
     const handleLoadSession = async (sessionToLoad: Session) => {
         const audioBlob = await getSessionAudio(sessionToLoad.id);
         
-        const loadedSessionState = produce(sessionToLoad, draft => {
-            draft.settings = session.settings; // Keep current user settings
+        const defaultSession = getInitialSession();
+        const mergedSession = { ...defaultSession, ...sessionToLoad };
+
+        const loadedSessionState = produce(mergedSession, draft => {
+            draft.settings = session.settings;
         });
 
         resetSession(loadedSessionState);
         setLoadedAudio(audioBlob);
         setShowHistoryDropdown(false);
+        setMainInputText('');
+        setActiveDiscussionTopic(null);
     };
 
     const handleExportSession = async (sessionId: string) => {
@@ -274,7 +299,7 @@ const App: React.FC = () => {
         
         const link = document.createElement("a");
         link.href = URL.createObjectURL(zipBlob);
-        const safeName = sessionToExport.name.trim().replace(/\s+/g, '_').replace(/[<>:"/\\|?*]/g, '_').replace(/__+/g, '_');
+        const safeName = sessionToExport.name.trim().replace(/[^\p{L}\p{N}_-]+/gu, '_').replace(/__+/g, '_');
         link.download = `voiceink_session_${safeName}.zip`;
         document.body.appendChild(link);
         link.click();
@@ -491,41 +516,53 @@ const App: React.FC = () => {
 
     const handleAskAIAgent = async (prompt: string) => {
         if (!geminiApiKey) { setShowApiKeyModal(true); return; }
-        
-        const userMessage: AIChatMessage = { role: 'user', parts: [{ text: prompt }] };
+    
         const userMessageForDisplay: Message = {
-            id: `msg-${Date.now()}`,
+            id: `msg-user-${Date.now()}`,
             text: prompt,
             timestamp: -1,
             sender: 'user',
         };
-        setSession(produce(draft => { draft.messages.push(userMessageForDisplay); }));
-
+    
+        const assistantPlaceholder: Message = {
+            id: `msg-assistant-${Date.now()}`,
+            text: '...', // Special placeholder for thinking
+            timestamp: -1,
+            sender: 'assistant',
+        };
+    
+        const aiChatHistory: AIChatMessage[] = session.messages
+            .filter(m => m.timestamp === -1) // only chat messages
+            .map((m) => ({
+                role: m.sender === 'user' ? 'user' : 'model',
+                parts: [{ text: m.text }],
+            }));
+        aiChatHistory.push({ role: 'user', parts: [{ text: prompt }] });
+    
+        setSession(produce(draft => {
+            draft.messages.push(userMessageForDisplay);
+            draft.messages.push(assistantPlaceholder);
+        }));
+    
         setIsProcessingAgent(true);
+        setMainInputText(''); 
+    
         try {
             const context = buildAIContext();
             
-            const aiChatHistory: AIChatMessage[] = session.messages
-                .filter(m => m.timestamp === -1)
-                .map(m => ({
-                    role: m.sender === 'user' ? 'user' : 'model',
-                    parts: [{ text: m.text }],
-                }));
-
-            const responseText = await getAgentResponse(geminiApiKey, context, session.agentConfig, lang, aiChatHistory);
+            const responseText = await getAgentResponse(geminiApiKey, context, session.agentConfig, lang, aiChatHistory, activeDiscussionTopic || undefined);
             
-            const assistantMessage: Message = {
-                id: `msg-${Date.now() + 1}`,
-                text: responseText,
-                timestamp: -1,
-                sender: 'assistant',
-            };
-            setSession(produce(draft => { draft.messages.push(assistantMessage); }));
-
+            setSession(produce(draft => {
+                const msgToUpdate = draft.messages.find(m => m.id === assistantPlaceholder.id);
+                if (msgToUpdate) {
+                    msgToUpdate.text = responseText;
+                }
+            }));
+    
         } catch (e) {
             alert(t('aiError', lang));
             setSession(produce(draft => {
-                draft.messages = draft.messages.filter(m => m.id !== userMessageForDisplay.id);
+                draft.messages = draft.messages.filter(m => m.id !== userMessageForDisplay.id && m.id !== assistantPlaceholder.id);
             }));
         } finally {
             setIsProcessingAgent(false);
@@ -545,7 +582,6 @@ const App: React.FC = () => {
 
         let apiCall: ((...args: any[]) => Promise<string>) | null = null;
         let noteType = toolId;
-        // FIX: The type `keyof typeof t` was incorrect for a translation key. `Parameters<typeof t>[0]` correctly infers the type from the `t` function's signature, fixing the downstream assignment errors.
         let noteTitleKey: Parameters<typeof t>[0] = 'note';
         
         switch(toolId) {
@@ -732,7 +768,219 @@ const App: React.FC = () => {
             draft.name = newName;
         }));
     };
+
+    const handleUsePrompt = (text: string) => {
+        setMainInputText(text);
+        setShowPromptWizardModal(false);
+    };
+
+    const handleOpenSavePromptModal = (text: string) => {
+        setPromptToSave(text);
+        setShowSavePromptModal(true);
+        setShowPromptWizardModal(false); // Close wizard if open
+    };
+
+    const handleSavePrompt = (name: string, category: string, text: string) => {
+        addPrompt({
+            id: `prompt-${Date.now()}`,
+            name,
+            category,
+            text,
+            createdAt: new Date().toISOString()
+        });
+        setShowSavePromptModal(false);
+        setPromptToSave(null);
+    };
+
+    const handleExportPrompts = async () => {
+        if (prompts.length === 0) {
+          alert('Prompt library is empty.');
+          return;
+        }
+        const zip = new JSZip();
+        zip.file("prompts.json", JSON.stringify(prompts, null, 2));
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(zipBlob);
+        link.download = `voiceink_prompts.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+    };
     
+    const handleImportPrompts = () => {
+        promptImportFileRef.current?.click();
+    };
+
+    const onPromptFileImportChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+    
+        try {
+            const zip = await JSZip.loadAsync(file);
+            const promptsFile = zip.file('prompts.json');
+            if (!promptsFile) {
+                throw new Error('prompts.json not found in the archive.');
+            }
+            const promptsDataString = await promptsFile.async('string');
+            const importedData = JSON.parse(promptsDataString);
+            if (!Array.isArray(importedData)) {
+                throw new Error('Invalid prompts file format.');
+            }
+            await importPrompts(importedData);
+            alert('Prompts imported successfully!');
+        } catch (error) {
+            console.error("Failed to import prompts:", error);
+            alert(`Failed to import prompts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            if(event.target) event.target.value = '';
+        }
+    };
+    
+    const handleStartDiscussion = useCallback(async (topic: string) => {
+        if (!geminiApiKey) {
+            setShowApiKeyModal(true);
+            return;
+        }
+        const context = buildAIContext();
+        if (!context.trim()) {
+            alert("Please select at least one source for analysis.");
+            return;
+        }
+
+        setIsProcessingDiscussion(true);
+        setActiveDiscussionTopic(topic);
+        
+        const thinkingMessage: Message = {
+            id: `msg-user-${Date.now()}`,
+            text: `${t('discussTopic', lang)}: ${topic}`,
+            timestamp: -1,
+            sender: 'user',
+        };
+
+        const assistantPlaceholder: Message = {
+            id: `msg-assistant-${Date.now()}`,
+            text: '...',
+            timestamp: -1,
+            sender: 'assistant',
+        };
+
+        setSession(produce(draft => { 
+            draft.messages.push(thinkingMessage);
+            draft.messages.push(assistantPlaceholder);
+        }));
+
+        try {
+            const rawText = await getDiscussionForTopic(geminiApiKey, topic, context, lang);
+            
+            const citations: Citation[] = [];
+            const citationRegex = /\{\{cite: "([^"]+)"\}\}/g;
+            
+            const findSourceForFragment = (fragment: string) => {
+                 const selectedSources = session.sources.filter(s => session.selectedSourceIds?.includes(s.id));
+                 for (const source of selectedSources) {
+                     const content = Array.isArray(source.content) ? source.content.map(m=>m.text).join('\n') : source.content;
+                     if(content.includes(fragment)) {
+                         return source.id;
+                     }
+                 }
+                 return null;
+            }
+
+            let htmlContent = rawText.replace(citationRegex, (match, fragment) => {
+                const sourceId = findSourceForFragment(fragment);
+                if (sourceId) {
+                    const citation: Citation = { index: citations.length + 1, sourceId, fragment };
+                    citations.push(citation);
+                    return `{{CITATION:${citations.length - 1}}}`;
+                }
+                return '';
+            });
+
+            htmlContent = htmlContent
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br />');
+
+            setSession(produce(draft => { 
+                const msgToUpdate = draft.messages.find(m => m.id === assistantPlaceholder.id);
+                if (msgToUpdate) {
+                    msgToUpdate.text = htmlContent;
+                    msgToUpdate.discussion = true;
+                    msgToUpdate.citations = citations;
+                }
+            }));
+
+        } catch (error: any) {
+            const errorMessage = error?.status === 429
+                ? t('rateLimitError', lang)
+                : t('aiError', lang);
+            
+            setSession(produce(draft => { 
+                const msgToUpdate = draft.messages.find(m => m.id === assistantPlaceholder.id);
+                if (msgToUpdate) {
+                    msgToUpdate.text = `**Error:** ${errorMessage}`;
+                }
+            }));
+        } finally {
+            setIsProcessingDiscussion(false);
+        }
+    }, [geminiApiKey, buildAIContext, lang, setSession, session.sources, session.selectedSourceIds]);
+    
+    const handleCitationClick = (citation: Citation) => {
+        setSession(produce(draft => {
+            draft.highlightFragment = { sourceId: citation.sourceId, fragment: citation.fragment };
+        }));
+        if (isSourcesPanelCollapsed) {
+            setIsSourcesPanelCollapsed(false);
+        }
+    };
+    
+    const handleToggleInsightMode = async () => {
+        const currentlyActive = session.isInsightModeActive;
+
+        if (currentlyActive) {
+            setSession(produce(draft => {
+                draft.isInsightModeActive = false;
+                if(draft.insights) draft.insights = [];
+            }));
+            return;
+        }
+
+        if (!geminiApiKey) {
+            setShowApiKeyModal(true);
+            return;
+        }
+
+        setIsProcessingInsights(true);
+        try {
+            const sourceContext = buildAIContext();
+            const chatContext = session.messages.map(m => m.text).join('\n\n');
+            const fullText = `${sourceContext}\n\n${chatContext}`;
+
+            if (!fullText.trim()) {
+                setIsProcessingInsights(false);
+                return;
+            }
+
+            const insights = await getInsightsForText(geminiApiKey, fullText, lang);
+            setSession(produce(draft => {
+                draft.insights = insights;
+                draft.isInsightModeActive = true;
+            }));
+
+        } catch (error: any) {
+             const errorMessage = error?.status === 429
+                ? t('rateLimitError', lang)
+                : t('aiError', lang);
+            alert(`${t('insightMode', lang)} Error: ${errorMessage}`);
+        } finally {
+            setIsProcessingInsights(false);
+        }
+    };
+
+
     return (
     <div className={`theme-${session.settings.theme} bg-[var(--bg-main)] text-[var(--text-primary)] h-screen w-screen flex flex-col p-4 pt-0 gap-4`}>
         <Header
@@ -775,8 +1023,7 @@ const App: React.FC = () => {
             <SourcesPanel
                 isCollapsed={isSourcesPanelCollapsed}
                 onToggleCollapse={() => setIsSourcesPanelCollapsed(p => !p)}
-                sources={session.sources}
-                selectedSourceIds={session.selectedSourceIds || []}
+                session={session}
                 onToggleSource={handleToggleSourceSelection}
                 onToggleSelectAll={handleToggleSelectAllSources}
                 onAddSourceClick={() => setShowAddSourceModal(true)}
@@ -785,7 +1032,10 @@ const App: React.FC = () => {
                 isProcessingGuide={isProcessingGuide}
                 onRenameSource={setSourceToRename}
                 onDeleteSource={handleDeleteSource}
+                onStartDiscussion={handleStartDiscussion}
+                onClearHighlight={() => setSession(produce(draft => { draft.highlightFragment = null; }))}
                 lang={lang}
+                isProcessingDiscussion={isProcessingDiscussion}
             />
             <main className="flex-grow flex flex-col min-w-0 bg-[var(--bg-surface)] rounded-lg shadow-md relative basis-1/2">
               <header className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0 h-[60px]">
@@ -830,39 +1080,48 @@ const App: React.FC = () => {
                 playbackTime={playbackTime}
                 onSeekAudio={(time) => { if(audioRef.current) audioRef.current.currentTime = time; }}
                 onSaveToNote={handleSaveToNote}
+                onCitationClick={handleCitationClick}
               />
-              <div className="absolute bottom-0 left-0 right-0">
-                <div className="max-w-lg mx-auto p-4 space-y-2">
-                    <AudioPlayer
-                        ref={audioRef}
-                        blob={loadedAudio}
-                        onTimeUpdate={setPlaybackTime}
-                        isVisible={session.hasAudio}
-                    />
-                    <MainAIChatInput 
-                        onAskAIAgent={handleAskAIAgent}
-                        isProcessing={isProcessingAgent}
-                        lang={lang}
-                        onAgentConfigClick={() => setShowAgentConfigModal(true)}
-                    />
-                    <TranscriptionControls
-                        isRecording={isRecording}
-                        isPaused={isPaused}
-                        isPushToTalkActive={isPushToTalkActive}
-                        onStartClick={() => setShowNewSessionModal(true)}
-                        onStopClick={handleStop}
-                        onPauseClick={() => {
-                            if (isPaused) {
-                                resumeListening();
-                            } else {
-                                pauseListening();
-                            }
-                            setIsPaused(!isPaused);
-                        }}
-                        onMicToggle={() => setIsPushToTalkActive(p => !p)}
-                        lang={lang}
-                    />
-                </div>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-4xl px-4 z-20">
+                    <div className="relative space-y-2">
+                        <AudioPlayer
+                            ref={audioRef}
+                            blob={loadedAudio}
+                            onTimeUpdate={setPlaybackTime}
+                            isVisible={session.hasAudio}
+                        />
+                         <div className="flex items-stretch gap-2 p-2 bg-slate-800/70 backdrop-blur-md rounded-full shadow-lg border border-slate-700">
+                             <TranscriptionControls
+                                isRecording={isRecording}
+                                isPaused={isPaused}
+                                isPushToTalkActive={isPushToTalkActive}
+                                onStartClick={() => setShowNewSessionModal(true)}
+                                onStopClick={handleStop}
+                                onPauseClick={() => {
+                                    if (isPaused) {
+                                        resumeListening();
+                                    } else {
+                                        pauseListening();
+                                    }
+                                    setIsPaused(!isPaused);
+                                }}
+                                onMicToggle={() => setIsPushToTalkActive(p => !p)}
+                                lang={lang}
+                            />
+                            <MainAIChatInput 
+                                value={mainInputText}
+                                onChange={setMainInputText}
+                                onAskAIAgent={() => handleAskAIAgent(mainInputText)}
+                                isProcessing={isProcessingAgent}
+                                lang={lang}
+                                onAgentConfigClick={() => setShowAgentConfigModal(true)}
+                                onSavePromptClick={() => handleOpenSavePromptModal(mainInputText)}
+                                onToggleInsightMode={handleToggleInsightMode}
+                                isInsightModeActive={session.isInsightModeActive || false}
+                                isProcessingInsights={isProcessingInsights}
+                            />
+                        </div>
+                    </div>
               </div>
             </main>
             <StudioPanel
@@ -880,12 +1139,26 @@ const App: React.FC = () => {
                 processingTool={processingTool}
                 onUpdateToolSettings={handleUpdateToolSettings}
                 lang={lang}
+                prompts={prompts}
+                onUsePrompt={handleUsePrompt}
+                onUpdatePrompt={updatePrompt}
+                onDeletePrompt={deletePrompt}
+                onOpenPromptWizard={() => setShowPromptWizardModal(true)}
+                onExportPrompts={handleExportPrompts}
+                onImportPrompts={handleImportPrompts}
             />
         </div>
         <input
             type="file"
             ref={importFileRef}
             onChange={onFileImportChange}
+            accept=".zip"
+            className="hidden"
+        />
+        <input
+            type="file"
+            ref={promptImportFileRef}
+            onChange={onPromptFileImportChange}
             accept=".zip"
             className="hidden"
         />
@@ -940,8 +1213,25 @@ const App: React.FC = () => {
             canContinue={!isRecording && (session.messages.length > 0 || session.sources.length > 0 || session.hasAudio)}
             onContinue={() => {
                 setShowNewSessionModal(false);
-                handleStart();
+                handleContinueRecording();
             }}
+        />}
+        {showPromptWizardModal && geminiApiKey && <PromptWizardModal
+            apiKey={geminiApiKey}
+            lang={lang}
+            onClose={() => setShowPromptWizardModal(false)}
+            onUsePrompt={handleUsePrompt}
+            onSavePrompt={handleOpenSavePromptModal}
+        />}
+        {showSavePromptModal && promptToSave && <SavePromptModal
+            promptText={promptToSave}
+            prompts={prompts}
+            onClose={() => {
+                setShowSavePromptModal(false);
+                setPromptToSave(null);
+            }}
+            onSave={handleSavePrompt}
+            lang={lang}
         />}
     </div>
   );
