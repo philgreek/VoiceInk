@@ -5,6 +5,11 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
+  if (!process.env.API_KEY) {
+    console.error('API key is not configured on the server for source guide.');
+    return res.status(500).json({ error: 'Server configuration error: API key is missing.' });
+  }
+
   try {
     const { content, lang } = req.body;
     if (!content || !lang) {

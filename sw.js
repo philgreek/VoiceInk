@@ -44,7 +44,7 @@ self.addEventListener('fetch', event => {
         .catch(() => {
           // If the network request fails (e.g., offline),
           // serve the main app shell from the cache.
-          return caches.match('./');
+          return caches.match('./index.html');
         })
     );
     return;

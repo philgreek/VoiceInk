@@ -88,7 +88,12 @@ export const getActionItems = async (text: string, lang: Language): Promise<Acti
         });
         
         const jsonText = safelyGetText(response);
-        return JSON.parse(jsonText);
+        try {
+            return JSON.parse(jsonText);
+        } catch (e) {
+            console.error("Failed to parse JSON response from Gemini for action items:", jsonText);
+            throw new Error("AI returned an invalid response format.");
+        }
     } catch (error) {
         handleAIError(error, 'action items');
     }
@@ -122,7 +127,12 @@ export const getKeyTopics = async (text: string, lang: Language): Promise<string
         });
 
         const jsonText = safelyGetText(response);
-        return JSON.parse(jsonText);
+        try {
+            return JSON.parse(jsonText);
+        } catch (e) {
+            console.error("Failed to parse JSON response from Gemini for key topics:", jsonText);
+            throw new Error("AI returned an invalid response format.");
+        }
     } catch (error) {
         handleAIError(error, 'key topics');
     }
@@ -248,7 +258,12 @@ export const getAgentResponse = async (
         });
         
         const jsonText = safelyGetText(response);
-        return JSON.parse(jsonText);
+        try {
+            return JSON.parse(jsonText);
+        } catch (e) {
+            console.error("Failed to parse JSON response from Gemini for AI agent chat:", jsonText);
+            throw new Error("AI returned an invalid response format.");
+        }
 
     } catch (error) {
         handleAIError(error, 'AI agent chat');
@@ -295,7 +310,12 @@ export const extractEntities = async (text: string, lang: Language): Promise<Ent
         });
         
         const jsonText = safelyGetText(response);
-        return JSON.parse(jsonText);
+        try {
+            return JSON.parse(jsonText);
+        } catch (e) {
+            console.error("Failed to parse JSON response from Gemini for entity extraction:", jsonText);
+            throw new Error("AI returned an invalid response format.");
+        }
     } catch (error) {
         handleAIError(error, 'entity extraction');
     }
@@ -379,7 +399,12 @@ ${content}
         });
         
         const jsonText = safelyGetText(response);
-        return JSON.parse(jsonText);
+        try {
+            return JSON.parse(jsonText);
+        } catch (e) {
+            console.error("Failed to parse JSON response from Gemini for source guide:", jsonText);
+            throw new Error("AI returned an invalid response format.");
+        }
     } catch (error) {
         handleAIError(error, 'source guide');
     }
@@ -547,7 +572,12 @@ export const getInsightsForText = async (text: string, lang: Language): Promise<
         });
         
         const jsonText = safelyGetText(response);
-        return JSON.parse(jsonText);
+        try {
+            return JSON.parse(jsonText);
+        } catch (e) {
+            console.error("Failed to parse JSON response from Gemini for insights extraction:", jsonText);
+            throw new Error("AI returned an invalid response format.");
+        }
     } catch (error) {
         handleAIError(error, 'insights extraction');
     }
