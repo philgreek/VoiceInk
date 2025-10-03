@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
 import { Message, Session, Settings, Insight, Source, SessionProfileId, Note, StudioToolId, Citation, SelectionContext, SourceType, AIChatMessage } from './types';
@@ -517,7 +516,7 @@ const App: React.FC = () => {
     const handleAskAIAgent = async (prompt: string) => {
         if (!geminiApiKey) { setShowApiKeyModal(true); return; }
     
-        const userMessageForDisplay: Message = {
+        const userMessage: Message = {
             id: `msg-user-${Date.now()}`,
             text: prompt,
             timestamp: -1,
@@ -526,21 +525,33 @@ const App: React.FC = () => {
     
         const assistantPlaceholder: Message = {
             id: `msg-assistant-${Date.now()}`,
-            text: '...', // Special placeholder for thinking
+            text: '...',
             timestamp: -1,
             sender: 'assistant',
         };
     
+        // Reconstruct chat history for the AI model
         const aiChatHistory: AIChatMessage[] = session.messages
-            .filter(m => m.timestamp === -1) // only chat messages
-            .map((m) => ({
-                role: m.sender === 'user' ? 'user' : 'model',
-                parts: [{ text: m.text }],
-            }));
+            .filter(m => m.timestamp === -1 && m.text !== '...')
+            .map((m): AIChatMessage | null => {
+                if (m.sender === 'user') {
+                    return { role: 'user', parts: [{ text: m.text }] };
+                }
+                if (m.sender === 'assistant' && m.answer) {
+                    const modelResponseObject = {
+                        answer: m.answer,
+                        citations: m.citations?.map(c => ({ sourceName: c.sourceName, fragment: c.fragment }))
+                    };
+                    return { role: 'model', parts: [{ text: JSON.stringify(modelResponseObject) }] };
+                }
+                return null;
+            })
+            .filter((m): m is AIChatMessage => m !== null);
+    
         aiChatHistory.push({ role: 'user', parts: [{ text: prompt }] });
     
         setSession(produce(draft => {
-            draft.messages.push(userMessageForDisplay);
+            draft.messages.push(userMessage);
             draft.messages.push(assistantPlaceholder);
         }));
     
@@ -549,20 +560,32 @@ const App: React.FC = () => {
     
         try {
             const context = buildAIContext();
-            
-            const responseText = await getAgentResponse(geminiApiKey, context, session.agentConfig, lang, aiChatHistory, activeDiscussionTopic || undefined);
-            
+            const { answer, citations: rawCitations } = await getAgentResponse(geminiApiKey, context, aiChatHistory, lang);
+    
+            const processedCitations: Citation[] = rawCitations.map((rawCit, index) => {
+                const source = session.sources.find(s => s.name === rawCit.sourceName);
+                return {
+                    index: index + 1,
+                    sourceName: rawCit.sourceName,
+                    fragment: rawCit.fragment,
+                    sourceId: source ? source.id : null,
+                };
+            });
+
             setSession(produce(draft => {
                 const msgToUpdate = draft.messages.find(m => m.id === assistantPlaceholder.id);
                 if (msgToUpdate) {
-                    msgToUpdate.text = responseText;
+                    msgToUpdate.text = ''; // Clear placeholder text
+                    msgToUpdate.answer = answer;
+                    msgToUpdate.citations = processedCitations;
                 }
             }));
     
         } catch (e) {
+            console.error("Error asking AI Agent:", e);
             alert(t('aiError', lang));
             setSession(produce(draft => {
-                draft.messages = draft.messages.filter(m => m.id !== userMessageForDisplay.id && m.id !== assistantPlaceholder.id);
+                draft.messages = draft.messages.filter(m => m.id !== userMessage.id && m.id !== assistantPlaceholder.id);
             }));
         } finally {
             setIsProcessingAgent(false);
@@ -892,7 +915,7 @@ const App: React.FC = () => {
             let htmlContent = rawText.replace(citationRegex, (match, fragment) => {
                 const sourceId = findSourceForFragment(fragment);
                 if (sourceId) {
-                    const citation: Citation = { index: citations.length + 1, sourceId, fragment };
+                    const citation: Citation = { index: citations.length + 1, sourceId, sourceName: session.sources.find(s=>s.id === sourceId)?.name || 'Unknown', fragment };
                     citations.push(citation);
                     return `{{CITATION:${citations.length - 1}}}`;
                 }
@@ -906,8 +929,7 @@ const App: React.FC = () => {
             setSession(produce(draft => { 
                 const msgToUpdate = draft.messages.find(m => m.id === assistantPlaceholder.id);
                 if (msgToUpdate) {
-                    msgToUpdate.text = htmlContent;
-                    msgToUpdate.discussion = true;
+                    msgToUpdate.answer = htmlContent;
                     msgToUpdate.citations = citations;
                 }
             }));
@@ -929,8 +951,9 @@ const App: React.FC = () => {
     }, [geminiApiKey, buildAIContext, lang, setSession, session.sources, session.selectedSourceIds]);
     
     const handleCitationClick = (citation: Citation) => {
+        if (!citation.sourceId) return;
         setSession(produce(draft => {
-            draft.highlightFragment = { sourceId: citation.sourceId, fragment: citation.fragment };
+            draft.highlightFragment = { sourceId: citation.sourceId!, fragment: citation.fragment };
         }));
         if (isSourcesPanelCollapsed) {
             setIsSourcesPanelCollapsed(false);
@@ -978,6 +1001,10 @@ const App: React.FC = () => {
         } finally {
             setIsProcessingInsights(false);
         }
+    };
+
+    const handleAskAboutEntity = (entityName: string, sourceName: string) => {
+        setMainInputText(prev => `${prev}Расскажи мне о "${entityName}" в контексте источника "${sourceName}". `.trim());
     };
 
 
@@ -1036,6 +1063,7 @@ const App: React.FC = () => {
                 onClearHighlight={() => setSession(produce(draft => { draft.highlightFragment = null; }))}
                 lang={lang}
                 isProcessingDiscussion={isProcessingDiscussion}
+                onAskAboutEntity={handleAskAboutEntity}
             />
             <main className="flex-grow flex flex-col min-w-0 bg-[var(--bg-surface)] rounded-lg shadow-md relative basis-1/2">
               <header className="p-4 flex justify-between items-center border-b border-[var(--border-color)] flex-shrink-0 h-[60px]">

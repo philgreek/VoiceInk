@@ -1,28 +1,40 @@
-
 import React from 'react';
 import { translations } from './utils/translations';
 
 export interface Citation {
   index: number;
-  sourceId: string;
+  sourceId: string | null;
+  sourceName: string;
   fragment: string;
 }
 
 export interface Message {
   id: string;
-  text: string;
+  text: string; // For user messages, or placeholder for assistant
   timestamp: number; // Seconds from the start of the recording, or -1 for chat messages
   sender: 'user' | 'interlocutor' | 'assistant';
-  discussion?: boolean;
-  citations?: Citation[];
+  answer?: string; // "The Sky" - The generated answer text with citation markers
+  citations?: Citation[]; // "The Ground"
 }
 
 export type SourceType = 'transcription' | 'audio' | 'file' | 'url';
 
-export interface SourceGuide {
-  summary: string;
-  keyTopics: string[];
+export interface KeyTopic {
+  topic: string;
+  theses: string[];
 }
+
+export interface KeyEntityGuide {
+  name: string;
+  type: 'Person' | 'Organization' | 'Term' | 'Place' | 'Date';
+}
+
+export interface SourceGuide {
+  keyTopics: KeyTopic[];
+  keyTakeaways: string[];
+  keyPeople: KeyEntityGuide[];
+}
+
 
 export interface Source {
     id: string;

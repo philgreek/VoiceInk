@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { SendIcon, SparklesIcon, BookmarkIcon, LightbulbIcon } from './icons';
 import { t, Language } from '../utils/translations';

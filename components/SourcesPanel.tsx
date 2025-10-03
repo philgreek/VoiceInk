@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Session, Source } from '../types';
 import { t, Language } from '../utils/translations';
@@ -21,6 +20,7 @@ interface SourcesPanelProps {
     onClearHighlight: () => void;
     lang: Language;
     isProcessingDiscussion: boolean;
+    onAskAboutEntity: (entityName: string, sourceName: string) => void;
 }
 
 const SourceIcon: React.FC<{ type: Source['type'] }> = ({ type }) => {
@@ -36,46 +36,73 @@ const SourceIcon: React.FC<{ type: Source['type'] }> = ({ type }) => {
 const SourceGuideViewer: React.FC<{
     source: Source;
     isProcessing: boolean;
-    onStartDiscussion: (topic: string) => void;
-    isProcessingDiscussion: boolean;
     lang: Language;
-}> = ({ source, isProcessing, onStartDiscussion, isProcessingDiscussion, lang }) => {
-    const [isCollapsed, setIsCollapsed] = useState(false);
+    onAskAboutEntity: (entityName: string) => void;
+}> = ({ source, isProcessing, lang, onAskAboutEntity }) => {
+    const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
 
     if (isProcessing) {
         return (
-            <div className="p-4 bg-slate-800/50 rounded-lg text-slate-300 animate-pulse">
-                {t('generatingGuide', lang)}
+            <div className="p-4 bg-slate-800/50 rounded-lg text-slate-300">
+                <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span>{t('generatingGuide', lang)}</span>
+                </div>
             </div>
         );
     }
     
     if (!source.guide) return null;
 
+    const { keyTopics = [], keyTakeaways = [], keyPeople = [] } = source.guide;
+
+    const toggleTopic = (topic: string) => {
+        setExpandedTopic(prev => prev === topic ? null : topic);
+    };
+
     return (
-        <div className="bg-slate-800/50 rounded-lg">
-            <button
-                onClick={() => setIsCollapsed(!isCollapsed)}
-                className="w-full flex justify-between items-center p-3 text-left"
-            >
-                <div className="flex items-center gap-2">
-                    <SparklesDiamondIcon className="w-5 h-5 text-purple-400" />
-                    <span className="font-semibold text-slate-200">{t('sourceGuideTitle', lang)}</span>
+        <div className="space-y-6">
+            {keyTopics.length > 0 && (
+                <div>
+                    <h3 className="text-sm font-bold uppercase text-slate-500 mb-2 px-2">{t('keyTopicsTitle', lang)}</h3>
+                    <div className="bg-slate-800/50 rounded-lg">
+                        {keyTopics.map((item, index) => (
+                            <div key={index} className="border-b border-slate-700/50 last:border-b-0">
+                                <button onClick={() => toggleTopic(item.topic)} className="w-full flex justify-between items-center p-3 text-left hover:bg-slate-700/30 rounded-t-lg">
+                                    <span className="font-semibold text-slate-200">{item.topic}</span>
+                                    <ChevronUpIcon className={`w-5 h-5 text-slate-400 transition-transform ${expandedTopic === item.topic ? '' : 'rotate-180'}`} />
+                                </button>
+                                {expandedTopic === item.topic && (
+                                    <ul className="list-disc pl-9 pr-3 pb-3 text-slate-300 space-y-1 text-sm">
+                                        {item.theses.map((thesis, i) => <li key={i}>{thesis}</li>)}
+                                    </ul>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <ChevronUpIcon className={`w-5 h-5 text-slate-400 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
-            </button>
-            {!isCollapsed && (
-                <div className="px-3 pb-3 space-y-4">
-                    <p className="text-sm text-slate-300 whitespace-pre-wrap">{source.guide.summary}</p>
+            )}
+
+            {keyTakeaways.length > 0 && (
+                <div>
+                    <h3 className="text-sm font-bold uppercase text-slate-500 mb-2 px-2">{t('keyTakeawaysTitle', lang)}</h3>
+                    <ul className="list-disc pl-6 text-slate-300 space-y-1 text-sm">
+                        {keyTakeaways.map((takeaway, i) => <li key={i}>{takeaway}</li>)}
+                    </ul>
+                </div>
+            )}
+            
+            {keyPeople.length > 0 && (
+                 <div>
+                    <h3 className="text-sm font-bold uppercase text-slate-500 mb-2 px-2">{t('keyPeopleTitle', lang)}</h3>
                     <div className="flex flex-wrap gap-2">
-                        {(source.guide.keyTopics || []).map((topic, i) => (
+                        {keyPeople.map((person, i) => (
                             <button 
-                                key={i} 
-                                onClick={() => onStartDiscussion(topic)}
-                                disabled={isProcessingDiscussion}
-                                className="text-xs p-1.5 px-2.5 bg-slate-700/50 hover:bg-slate-700 rounded-full text-slate-300 disabled:opacity-50 disabled:cursor-wait"
+                                key={i}
+                                onClick={() => onAskAboutEntity(person.name)}
+                                className="text-xs p-1.5 px-2.5 bg-slate-700/50 hover:bg-slate-700 rounded-full text-slate-300 transition-colors"
                             >
-                                {topic}
+                                {person.name} <span className="text-slate-500 font-mono">({person.type})</span>
                             </button>
                         ))}
                     </div>
@@ -90,12 +117,11 @@ const SourceDetailView: React.FC<{
     onBack: () => void;
     onGenerateGuide: (sourceId: string) => void;
     isProcessingGuide: boolean;
-    onStartDiscussion: (topic: string) => void;
     session: Session;
     onClearHighlight: () => void;
     lang: Language;
-    isProcessingDiscussion: boolean;
-}> = ({ source, onBack, onGenerateGuide, isProcessingGuide, onStartDiscussion, session, onClearHighlight, lang, isProcessingDiscussion }) => {
+    onAskAboutEntity: (entityName: string, sourceName: string) => void;
+}> = ({ source, onBack, onGenerateGuide, isProcessingGuide, session, onClearHighlight, lang, onAskAboutEntity }) => {
     const contentRef = useRef<HTMLDivElement>(null);
     const { highlightFragment, insights, isInsightModeActive } = session;
 
@@ -109,7 +135,6 @@ const SourceDetailView: React.FC<{
         const contentEl = contentRef.current;
         if (!contentEl) return;
 
-        // Function to remove existing highlights
         const clearHighlights = () => {
             const marks = contentEl.querySelectorAll('mark');
             marks.forEach(mark => {
@@ -119,7 +144,7 @@ const SourceDetailView: React.FC<{
                         parent.insertBefore(mark.firstChild, mark);
                     }
                     parent.removeChild(mark);
-                    parent.normalize(); // Merges adjacent text nodes
+                    parent.normalize(); 
                 }
             });
         };
@@ -172,7 +197,13 @@ const SourceDetailView: React.FC<{
                 </button>
             </header>
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
-                <SourceGuideViewer source={source} isProcessing={isProcessingGuide} onStartDiscussion={onStartDiscussion} isProcessingDiscussion={isProcessingDiscussion} lang={lang} />
+                <SourceGuideViewer 
+                    source={source} 
+                    isProcessing={isProcessingGuide}
+                    lang={lang}
+                    onAskAboutEntity={(entityName) => onAskAboutEntity(entityName, source.name)}
+                />
+                <div className="border-t border-slate-700 my-4"></div>
                 <div 
                     ref={contentRef}
                     className="text-sm text-slate-300 whitespace-pre-wrap prose prose-invert prose-sm max-w-none"
@@ -262,6 +293,7 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
     onClearHighlight,
     lang,
     isProcessingDiscussion,
+    onAskAboutEntity,
 }) => {
     const { sources, selectedSourceIds = [], highlightFragment } = session;
     const [viewingSourceId, setViewingSourceId] = useState<string | null>(null);
@@ -312,11 +344,10 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
                     onBack={() => { setViewingSourceId(null); onClearHighlight(); }}
                     onGenerateGuide={onGenerateGuide}
                     isProcessingGuide={isProcessingGuide}
-                    onStartDiscussion={onStartDiscussion}
                     session={session}
                     onClearHighlight={onClearHighlight}
                     lang={lang}
-                    isProcessingDiscussion={isProcessingDiscussion}
+                    onAskAboutEntity={onAskAboutEntity}
                 />
             </aside>
         );

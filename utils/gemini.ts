@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language, t } from "./translations";
 import { ActionItem, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, Source, Message, SourceGuide, TextStyleId, Citation, Insight } from "../types";
@@ -16,28 +15,19 @@ const handleAIError = (error: unknown, context: string): never => {
 
 const safelyGetText = (response: GenerateContentResponse): string => {
     try {
-        // The .text getter is the recommended way.
         const text = response.text;
+        // The text property should always exist and be a string on a successful response.
         if (typeof text === 'string') {
             return text.trim();
         }
+        // This path indicates an unusual but non-exception-throwing failure.
+        console.warn("Could not extract text from Gemini response. The 'text' property was not a string.", { response });
+        return '';
     } catch (e) {
-        // In case the .text getter itself throws an error, we fall back.
-        console.warn("response.text getter failed, falling back to manual parsing.", e);
+        // This path indicates the .text getter threw an error, which is unexpected.
+        console.error("Error accessing the .text property on the Gemini response.", { error: e, response });
+        return '';
     }
-
-    // Fallback to manually parsing the response structure if .text is not available or fails.
-    try {
-        const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (typeof text === 'string') {
-            return text.trim();
-        }
-    } catch (e) {
-        console.error("Error during manual parsing of Gemini response:", e);
-    }
-
-    console.warn("Could not extract text from Gemini response. Returning empty string. Full response:", JSON.stringify(response, null, 2));
-    return ''; // Return an empty string if no text can be extracted
 };
 
 export const getSummary = async (apiKey: string, text: string, lang: Language): Promise<string> => {
@@ -190,78 +180,82 @@ export const getStyledText = async (apiKey: string, text: string, style: TextSty
     }
 };
 
-const agentExpertiseInstructions: Record<AIAgentExpertise, string> = {
-    // Definitions remain the same
-    interviewer: "As an Interviewer, your goal is to assess the conversation. Identify the key questions asked and the quality of the answers. Note the speaker's communication skills, confidence, and knowledge. Point out strengths and weaknesses.",
-    reporter: "As a Reporter, your goal is to find the story. Extract the most newsworthy facts, quotes, and events from the text. Structure your analysis like a news brief, focusing on the who, what, when, where, and why.",
-    recruiter: "As a Recruiter, analyze the transcript from a hiring perspective. Evaluate the candidate's skills, experience, and cultural fit based on their responses. Identify red flags or positive signals.",
-    sociologist: "As a Sociologist, examine the social dynamics within the conversation. Analyze power structures, social norms, group identity, and cultural references. Comment on how the speakers' interactions reflect broader social patterns.",
-    screenwriter: "As a Screenwriter, look for dramatic potential. Identify the core conflict, character arcs, key plot points, and memorable lines of dialogue. Suggest how this conversation could be adapted into a scene.",
-    translator: "As a Translator & Linguist, focus on the nuances of language. Analyze the use of idiom, slang, tone, and subtext. Identify potential translation challenges or cross-cultural communication issues.",
-    marketing_analyst: "As a Marketing Analyst, analyze the conversation for customer insights. Identify pain points, needs, brand perceptions, and purchasing signals. Extract any data that could inform a marketing strategy.",
-    tech_support: "As a Tech Support Specialist, your goal is to solve the problem. Identify the technical issue described, the steps taken to troubleshoot it, and the proposed solution. Structure the analysis as a support ticket summary.",
-    business_analyst: "As a Business Analyst, focus on processes, requirements, and stakeholders. Identify business needs, potential improvements, and key performance indicators (KPIs) mentioned in the conversation.",
-    financial_advisor: "As a Financial Advisor, scrutinize the text for any financial data, budget discussions, investment opportunities, costs, revenues, and economic risks. Provide a concise analysis of the financial situation.",
-    project_manager: "As a Project Manager, identify project goals, timelines, resources, risks, and stakeholder responsibilities. Extract a list of action items and key decisions.",
-    course_developer: "As a Course Developer, analyze the transcript for educational content. Identify key learning objectives, concepts, and examples. Suggest how this content could be structured into a lesson or course module.",
-    academic_researcher: "As an Academic Researcher, analyze the text for a research hypothesis, evidence, and conclusions. Identify the core arguments, methodologies discussed, and contributions to a field of knowledge.",
-    therapist: "As a Therapist/Counselor, analyze the conversation's emotional dynamics, communication patterns, and underlying psychological themes. Offer insights into the speakers' states of mind, potential conflicts, and relational dynamics. Use professional psychological terminology appropriately.",
-    psychologist: "As a Psychologist and Supervisor. Analyze the conversation's emotional dynamics, communication patterns, and underlying psychological themes. Offer insights into the speakers' states of mind, potential conflicts, and relational dynamics. Use professional psychological terminology appropriately.",
-    legal_assistant: "As a Legal Assistant/Paralegal, analyze the text from a legal perspective. Identify potential risks, liabilities, contractual obligations, and legal implications. Provide precise, cautious, and professional advice. Do not provide definitive legal counsel, but highlight areas that may require legal attention.",
-    detective: "As a Detective/Analyst, look for inconsistencies, hidden meanings, and evidence. Analyze the statements for credibility, motive, and opportunity. Piece together a timeline of events based on the conversation.",
-    chef_nutritionist: "As a Chef/Nutritionist, analyze the conversation for discussions about food, recipes, dietary habits, and health goals. Extract recipes, meal plans, or provide nutritional advice based on the text.",
-    customer_manager: "As a Customer Relationship Manager, analyze the conversation to gauge customer satisfaction. Identify complaints, positive feedback, and opportunities to improve the customer experience.",
-    coach: "As a Performance and Business Coach. Focus on goals, strategies, motivation, and actionable feedback. Identify opportunities for growth, skill development, and improved performance mentioned in the text. Your tone should be encouraging and forward-looking.",
-    editor: "As a professional Editor. Analyze the text for clarity, conciseness, structure, and style. Suggest improvements to the language and flow. Do not just correct grammar, but enhance the overall readability and impact of the text.",
-    tutor: "As a Tutor. Analyze the conversation to identify knowledge gaps, misunderstandings, or areas where a speaker could improve their understanding. Explain complex topics simply and ask clarifying questions. Your goal is to educate and clarify.",
-    speechwriter: "As a Speechwriter. Your task is to transform the key ideas from the conversation into a compelling speech, presentation, or monologue. Focus on creating a strong narrative, clear structure, and persuasive language. Identify the core message and build a powerful argument around it.",
-    data_scientist: "As a Data Scientist, your task is to analyze the text for patterns, trends, correlations, and extract quantitative data. Focus on metrics, statistics, and data-driven insights. Structure your analysis logically, as if preparing a data report.",
-    ux_researcher: "As a UX/UI Researcher, focus on analyzing user feedback, interviews, and discussions. Your goal is to identify user needs, pain points, motivations, and suggestions for product improvement. Structure your analysis into key themes and actionable insights.",
-    software_developer: "As a Software Developer / Code Reviewer, analyze technical discussions. Identify mentions of algorithms, data structures, architectural patterns, code snippets, bugs, and performance issues. Your analysis should be technical and precise.",
-    product_manager: "As a Product Manager, analyze the text from a product-centric viewpoint. Identify user stories, feature requests, user feedback, and competitive landscape information. Frame your analysis in terms of product strategy and roadmap.",
-    strategist: "As a Strategist / Management Consultant, analyze the text for elements of a SWOT analysis (Strengths, Weaknesses, Opportunities, Threats). Evaluate market positioning, strategic initiatives, and provide high-level recommendations.",
-    pr_specialist: "As a PR Specialist, focus on public perception, brand reputation, key messaging, and the tone of communication. Analyze the text for potential PR risks or opportunities. Suggest how information could be framed for a press release or public statement."
-};
-
-export const getAgentResponse = async (apiKey: string, context: string, agents: { expertise: AIAgentExpertise[], domains: AIAgentDomain[] }, lang: Language, chatHistory: AIChatMessage[], discussionTopic?: string): Promise<string> => {
+export const getAgentResponse = async (
+    apiKey: string, 
+    context: string, 
+    chatHistoryWithPrompt: AIChatMessage[], 
+    lang: Language
+): Promise<{ answer: string; citations: { sourceName: string; fragment: string }[] }> => {
     try {
         const ai = getAIClient(apiKey);
         
-        const expertiseInstructions = agents.expertise
-            .map(exp => agentExpertiseInstructions[exp] || '')
-            .join("\n\n");
+        const systemInstruction = `You are an expert research assistant. Your task is to answer user queries based ONLY on the provided source documents.
         
-        const expertiseNames = agents.expertise.map(e => t(`agent${e.charAt(0).toUpperCase() + e.slice(1)}` as any, lang)).join(', ');
-        const domainNames = agents.domains.map(d => t(`domain${d.charAt(0).toUpperCase() + d.slice(1)}` as any, lang)).join(', ');
+        Follow these instructions precisely:
+        1.  Analyze the user's query and the provided source documents.
+        2.  Construct a concise answer to the query using only information found in the sources.
+        3.  For every piece of information, statement, or data point you include in your answer, you MUST provide a numerical citation marker, like [1], [2], etc.
+        4.  After the answer, provide a list of citations. Each citation must correspond to a marker in your answer and contain the source name and the exact text fragment (quote) from the document that supports that part of the answer.
+        5.  If you cannot answer the question based on the provided sources, you must state that the information is not available in the documents. Do not use any external knowledge.
+        6.  Your entire response MUST be a valid JSON object that adheres to the provided schema.
+        7.  Respond in ${lang}.`;
 
-        let fullSystemInstruction = `You are a multi-disciplinary AI expert. Your current active expert roles are: ${expertiseNames}.
-        ${expertiseInstructions}
-        You must apply this expertise strictly within the following domains: ${domainNames}.
-        You have been provided with a set of source documents as the primary context. Answer the user's questions based ONLY on the provided sources, through the combined lens of your active roles and domains. If the answer is not in the sources, say that you cannot find the information in the provided context. Respond in ${lang}.`;
+        const fullContents: AIChatMessage[] = [];
         
-        if (discussionTopic) {
-            fullSystemInstruction += `\n\nYour current focus is on the topic: "${discussionTopic}". Frame your answers in relation to this topic.`;
+        // Add context as the first user message if it exists
+        if (context.trim()) {
+            fullContents.push({ role: 'user', parts: [{ text: `Here are the source documents for context:\n\n---\n${context}\n---` }] });
+            fullContents.push({ role: 'model', parts: [{ text: `Understood. I have reviewed all the provided sources. I am ready to answer questions based only on this context.` }] });
         }
-
-        const contents: AIChatMessage[] = [
-            { role: 'user', parts: [{ text: `Here are the source documents for context:\n\n---\n${context}\n---` }] },
-            { role: 'model', parts: [{ text: `Understood. I have reviewed all the provided sources. I am ready to answer your questions based on my active roles as a ${expertiseNames} specializing in ${domainNames}.` }] },
-            ...chatHistory
-        ];
+        
+        // Add the rest of the chat history and the current prompt
+        fullContents.push(...chatHistoryWithPrompt);
 
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash",
-            contents: contents,
+            contents: fullContents,
             config: {
-                systemInstruction: fullSystemInstruction
-            }
+                systemInstruction: systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        answer: {
+                            type: Type.STRING,
+                            description: "The concise, synthesized answer to the user's query, including numerical citation markers like [1], [2], etc."
+                        },
+                        citations: {
+                            type: Type.ARRAY,
+                            description: "A list of citation objects that support the answer.",
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    sourceName: {
+                                        type: Type.STRING,
+                                        description: "The name of the source document from which the fragment was taken."
+                                    },
+                                    fragment: {
+                                        type: Type.STRING,
+                                        description: "The exact quote or text fragment from the source document that backs up the information."
+                                    }
+                                },
+                                required: ["sourceName", "fragment"]
+                            }
+                        }
+                    },
+                    required: ["answer", "citations"]
+                }
+            },
         });
+        
+        const jsonText = safelyGetText(response);
+        return JSON.parse(jsonText);
 
-        return safelyGetText(response);
     } catch (error) {
         handleAIError(error, 'AI agent chat');
     }
 };
+
 
 export const extractEntities = async (apiKey: string, text: string, lang: Language): Promise<Entity[]> => {
     // This function primarily works on the main transcription, not all sources.
@@ -311,13 +305,18 @@ export const extractEntities = async (apiKey: string, text: string, lang: Langua
 export const getSourceGuide = async (apiKey: string, content: string, lang: Language): Promise<SourceGuide> => {
     try {
         const ai = getAIClient(apiKey);
-        const prompt = `Based on the following text content, generate a concise one-paragraph summary and a list of 3-5 main key topics discussed in the text. The response should be in ${lang}.
+        const prompt = `You are a research analyst. Analyze the following document and generate a structured 'Source Guide'. Your response must be in valid JSON format.
+1.  **keyTopics**: Identify 3-5 main themes. For each theme, provide the main topic name and a list of 3-5 key theses that explain it.
+2.  **keyTakeaways**: Provide a concise list of the 3-5 most important conclusions or overall arguments from the document.
+3.  **keyPeople**: Extract the most important and frequently mentioned people, organizations, and key technical terms. Categorize each one as 'Person', 'Organization', or 'Term'.
 
-        Text Content:
-        ---
-        ${content}
-        ---
-        `;
+Respond in ${lang}.
+
+Document:
+---
+${content}
+---
+`;
 
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash",
@@ -327,19 +326,55 @@ export const getSourceGuide = async (apiKey: string, content: string, lang: Lang
                 responseSchema: {
                     type: Type.OBJECT,
                     properties: {
-                        summary: {
-                            type: Type.STRING,
-                            description: "A concise summary of the provided text."
-                        },
                         keyTopics: {
                             type: Type.ARRAY,
+                            description: "A list of the main topics covered in the document.",
                             items: {
-                                type: Type.STRING,
-                                description: "A key topic from the text."
+                                type: Type.OBJECT,
+                                properties: {
+                                    topic: {
+                                        type: Type.STRING,
+                                        description: "The name of the main topic."
+                                    },
+                                    theses: {
+                                        type: Type.ARRAY,
+                                        description: "A list of key theses or points related to the topic.",
+                                        items: {
+                                            type: Type.STRING
+                                        }
+                                    }
+                                },
+                                required: ["topic", "theses"]
+                            }
+                        },
+                        keyTakeaways: {
+                            type: Type.ARRAY,
+                            description: "A list of the most important conclusions or takeaways from the document.",
+                            items: {
+                                type: Type.STRING
+                            }
+                        },
+                        keyPeople: {
+                            type: Type.ARRAY,
+                            description: "A list of key people, organizations, or terms mentioned.",
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    name: {
+                                        type: Type.STRING,
+                                        description: "The name of the entity."
+                                    },
+                                    type: {
+                                        type: Type.STRING,
+                                        enum: ['Person', 'Organization', 'Term', 'Place', 'Date'],
+                                        description: "The category of the entity."
+                                    }
+                                },
+                                required: ["name", "type"]
                             }
                         }
                     },
-                    required: ["summary", "keyTopics"]
+                    required: ["keyTopics", "keyTakeaways", "keyPeople"]
                 }
             }
         });
@@ -350,6 +385,7 @@ export const getSourceGuide = async (apiKey: string, content: string, lang: Lang
         handleAIError(error, 'source guide');
     }
 };
+
 
 export const getDiscussionForTopic = async (apiKey: string, topic: string, context: string, lang: Language): Promise<string> => {
     try {

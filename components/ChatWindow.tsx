@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, forwardRef, useState, useMemo } from 'react';
 import type { Message, Settings, Entity, EntityType, Session, Citation } from '../types';
 import { MicIcon, FileAudioIcon, BookmarkIcon, ClipboardIcon, ThumbsUpIcon, ThumbsDownIcon, CheckIcon } from './icons';
@@ -119,54 +118,66 @@ const UserQueryMessage: React.FC<{ message: Message; settings: Settings }> = ({ 
     );
 };
 
-const AssistantMessage: React.FC<{ message: Message; settings: Settings; lang: Language; onSaveToNote: (title: string, content: string, type: string) => void; onCitationClick: (citation: Citation) => void; session: Session; }> = ({ message, lang, onSaveToNote, onCitationClick, session }) => {
+const AssistantMessage: React.FC<{ 
+    message: Message; 
+    lang: Language; 
+    onSaveToNote: (title: string, content: string, type: string) => void; 
+    onCitationClick: (citation: Citation) => void; 
+}> = ({ message, lang, onSaveToNote, onCitationClick }) => {
     const [copied, setCopied] = useState(false);
     const contentRef = useRef<HTMLDivElement>(null);
     
+    const { answer, citations } = message;
+
     const handleCopy = () => {
-        navigator.clipboard.writeText(message.text).then(() => {
+        if (!answer) return;
+        navigator.clipboard.writeText(answer).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         });
     };
+
+    const handleSave = () => {
+        if (!answer) return;
+        const citationsText = citations?.map(c => `[${c.index}] ${c.sourceName}: "${c.fragment}"`).join('\n') || '';
+        const fullContent = `${answer}\n\nCitations:\n${citationsText}`;
+        onSaveToNote(answer.substring(0, 30) + '...', fullContent, 'assistantResponse');
+    };
     
     const buttonClass = "p-2 rounded-md text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors flex items-center gap-2";
 
-    useEffect(() => {
-        if (!message.discussion) return;
-        const delegateClick = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (target.tagName === 'BUTTON' && target.dataset.citationIndex) {
-                const index = parseInt(target.dataset.citationIndex, 10);
-                const citation = message.citations?.[index];
-                if (citation) {
-                    onCitationClick(citation);
-                }
-            }
-        };
-        const contentEl = contentRef.current;
-        contentEl?.addEventListener('click', delegateClick);
-        return () => contentEl?.removeEventListener('click', delegateClick);
-    }, [message.discussion, message.citations, onCitationClick]);
-    
-    const renderedHTML = useMemo(() => {
-        if (!message.discussion) return message.text;
-        
-        return message.text.replace(/\{\{CITATION:(\d+)\}\}/g, (match, indexStr) => {
-            const index = parseInt(indexStr, 10);
-            const citation = message.citations?.[index];
-            if (citation) {
-                return `<button class="inline-block align-middle mx-0.5 w-5 h-5 text-xs bg-slate-600 text-white rounded-full hover:bg-slate-500 transition-colors" data-citation-index="${index}">${citation.index}</button>`;
-            }
-            return '';
-        });
-    }, [message.text, message.discussion, message.citations]);
+    const isThinking = !answer;
 
-    const isThinking = message.text === '...';
+    const scrollToCitation = (citationIndex: number) => {
+        const element = document.getElementById(`citation-${message.id}-${citationIndex}`);
+        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element?.classList.add('animate-pulse');
+        setTimeout(() => element?.classList.remove('animate-pulse'), 2000);
+    };
+    
+    const renderAnswerWithCitations = (text: string) => {
+        const parts = text.split(/(\[\d+\])/g);
+        return parts.map((part, index) => {
+            const match = part.match(/\[(\d+)\]/);
+            if (match) {
+                const citNum = parseInt(match[1], 10);
+                return (
+                    <button
+                        key={index}
+                        onClick={() => scrollToCitation(citNum)}
+                        className="inline-block align-super -mt-1 mx-0.5 w-5 h-5 text-xs font-bold bg-slate-600 text-white rounded-full hover:bg-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    >
+                        {citNum}
+                    </button>
+                );
+            }
+            return <React.Fragment key={index}>{part}</React.Fragment>;
+        });
+    };
 
     return (
         <div className="p-4 sm:p-6 my-2">
-            <div className="p-4 bg-slate-800/50 rounded-lg">
+            <div ref={contentRef} className="p-4 bg-slate-800/50 rounded-lg">
                 {isThinking ? (
                     <div className="flex items-center gap-3 text-slate-400">
                         <div className="w-2 h-2 bg-slate-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
@@ -176,20 +187,37 @@ const AssistantMessage: React.FC<{ message: Message; settings: Settings; lang: L
                     </div>
                 ) : (
                     <>
-                        {message.discussion ? (
-                            <div 
-                                ref={contentRef}
-                                className="text-slate-300 whitespace-pre-wrap prose prose-invert prose-sm max-w-none" 
-                                dangerouslySetInnerHTML={{ __html: renderedHTML }}
-                            />
-                        ) : (
-                             <div className="text-slate-300 whitespace-pre-wrap prose prose-invert prose-sm max-w-none">
-                                <InsightRenderer text={message.text} insights={session.insights || []} isInsightModeActive={session.isInsightModeActive || false} lang={lang} />
+                        {/* The Sky */}
+                        <div className="text-slate-300 whitespace-pre-wrap prose prose-invert prose-sm max-w-none">
+                           {renderAnswerWithCitations(answer)}
+                        </div>
+                        
+                        {/* The Ground */}
+                        {citations && citations.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-slate-700/50 space-y-3">
+                                <h4 className="text-xs font-bold uppercase text-slate-500">Citations</h4>
+                                {citations.map((citation) => (
+                                    <div key={citation.index} id={`citation-${message.id}-${citation.index}`} className="p-2 bg-slate-900/50 rounded-md transition-shadow duration-300">
+                                        <button 
+                                            onClick={() => onCitationClick(citation)}
+                                            className="w-full text-left"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="flex-shrink-0 flex items-center justify-center w-5 h-5 text-xs font-bold bg-slate-600 text-white rounded-full">{citation.index}</span>
+                                                <span className="text-sm font-semibold text-cyan-400 truncate hover:underline">{citation.sourceName}</span>
+                                            </div>
+                                            <blockquote className="mt-2 pl-4 border-l-2 border-slate-600 text-slate-400 text-sm italic">
+                                                "{citation.fragment}"
+                                            </blockquote>
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
                         )}
 
+                        {/* Actions */}
                         <div className="mt-4 pt-4 border-t border-slate-700/50 flex items-center gap-2">
-                            <button className={buttonClass} onClick={() => onSaveToNote(message.text.substring(0, 30) + '...', message.text, 'assistantResponse')}>
+                            <button className={buttonClass} onClick={handleSave}>
                                 <BookmarkIcon className="w-4 h-4" />
                                 <span className="text-xs font-semibold">{t('saveToNote', lang)}</span>
                             </button>
@@ -353,7 +381,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
         
         {chatMessages.map((msg) => {
             if (msg.sender === 'assistant') {
-                return <AssistantMessage key={msg.id} message={msg} settings={settings} lang={lang} onSaveToNote={onSaveToNote} onCitationClick={onCitationClick} session={session} />;
+                return <AssistantMessage key={msg.id} message={msg} lang={lang} onSaveToNote={onSaveToNote} onCitationClick={onCitationClick} />;
             } else { 
                 return <UserQueryMessage key={msg.id} message={msg} settings={settings} />;
             }

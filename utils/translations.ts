@@ -1,4 +1,3 @@
-
 export const translations = {
   en: {
     voiceInk: 'VoiceInk',
@@ -408,6 +407,9 @@ export const translations = {
     insightMode: 'Insight Mode',
     generatingInsights: 'Generating insights...',
     termInfo: 'Term Information',
+    keyTopicsTitle: 'Key Topics',
+    keyTakeawaysTitle: 'Key Takeaways',
+    keyPeopleTitle: 'Key People & Terms',
   },
   ru: {
     voiceInk: 'VoiceInk',
@@ -816,6 +818,9 @@ export const translations = {
     insightMode: 'Режим анализа',
     generatingInsights: 'Генерация анализа...',
     termInfo: 'Информация о термине',
+    keyTopicsTitle: 'Ключевые темы',
+    keyTakeawaysTitle: 'Ключевые тезисы',
+    keyPeopleTitle: 'Ключевые персоны и термины',
   },
   es: { /* ... */ },
   fr: { /* ... */ },

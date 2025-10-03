@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Insight } from '../types';
 import { t, Language } from '../utils/translations';
@@ -37,8 +36,8 @@ export const InsightRenderer: React.FC<InsightRendererProps> = ({ text, insights
     const parts = text.split(termsRegex);
     
     return parts.map((part, index) => {
-      const lowerPart = part.toLowerCase();
-      if (insightMap.has(lowerPart)) {
+      const lowerPart = part?.toLowerCase();
+      if (part && insightMap.has(lowerPart)) {
         const insight = insightMap.get(lowerPart)!;
         return (
           <Tooltip key={index} content={insight.definition}>
