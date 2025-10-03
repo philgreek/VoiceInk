@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { XIcon, SparklesIcon, SendIcon } from './icons';
 import { t, Language } from '../utils/translations';
@@ -6,14 +7,13 @@ import { AIChatMessage } from '../types';
 import { getPromptWizardResponse } from '../utils/gemini';
 
 interface PromptWizardModalProps {
-  apiKey: string;
   lang: Language;
   onClose: () => void;
   onUsePrompt: (text: string) => void;
   onSavePrompt: (text: string) => void;
 }
 
-export const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ apiKey, lang, onClose, onUsePrompt, onSavePrompt }) => {
+export const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ lang, onClose, onUsePrompt, onSavePrompt }) => {
   const [messages, setMessages] = useState<AIChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -34,7 +34,7 @@ export const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ apiKey, la
     setIsLoading(true);
 
     try {
-      const responseText = await getPromptWizardResponse(apiKey, newMessages, lang);
+      const responseText = await getPromptWizardResponse(newMessages, lang);
       const modelMessage: AIChatMessage = { role: 'model', parts: [{ text: responseText }] };
       setMessages(prev => [...prev, modelMessage]);
     } catch (error) {

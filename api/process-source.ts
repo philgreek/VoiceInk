@@ -44,7 +44,11 @@ const safelyGetTextFromResponse = (response: GenerateContentResponse): string =>
 };
 
 
-const transcribeAudio = async (apiKey: string, filePath: string, mimeType: string) => {
+const transcribeAudio = async (filePath: string, mimeType: string) => {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      throw new Error('API key is not configured on the server.');
+    }
     const ai = new GoogleGenAI({ apiKey });
     const audioData = fs.readFileSync(filePath).toString("base64");
 
@@ -106,11 +110,6 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const apiKey = req.headers['x-api-key'];
-  if (!apiKey || typeof apiKey !== 'string') {
-    return res.status(401).json({ error: 'API key not configured on the server' });
-  }
-
   try {
     const { fields, files } = await processFile(req);
     const type = Array.isArray(fields.type) ? fields.type[0] : fields.type;
@@ -123,7 +122,7 @@ export default async function handler(req: any, res: any) {
             return res.status(400).json({ error: 'File not provided' });
         }
         if (type === 'audio') {
-            content = await transcribeAudio(apiKey, file.filepath, file.mimetype || 'application/octet-stream');
+            content = await transcribeAudio(file.filepath, file.mimetype || 'application/octet-stream');
         } else { // text file
             content = readTextFile(file.filepath);
         }

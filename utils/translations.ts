@@ -410,6 +410,8 @@ export const translations = {
     keyTopicsTitle: 'Key Topics',
     keyTakeawaysTitle: 'Key Takeaways',
     keyPeopleTitle: 'Key People & Terms',
+    tellMeAbout: 'Tell me about {entityName}',
+    inTheContextOfSource: 'in the context of source {sourceName}',
   },
   ru: {
     voiceInk: 'VoiceInk',
@@ -821,6 +823,8 @@ export const translations = {
     keyTopicsTitle: 'Ключевые темы',
     keyTakeawaysTitle: 'Ключевые тезисы',
     keyPeopleTitle: 'Ключевые персоны и термины',
+    tellMeAbout: 'Расскажи мне о {entityName}',
+    inTheContextOfSource: 'в контексте источника {sourceName}',
   },
   es: { /* ... */ },
   fr: { /* ... */ },

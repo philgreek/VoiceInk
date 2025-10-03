@@ -1,3 +1,7 @@
+
+
+
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
 import { Message, Session, Settings, Insight, Source, SessionProfileId, Note, StudioToolId, Citation, SelectionContext, SourceType, AIChatMessage } from './types';
@@ -8,7 +12,6 @@ import { SettingsModal } from './components/SettingsModal';
 import { NewSessionModal } from './components/NewSessionModal';
 import { HistoryDropdown } from './components/HistoryDropdown';
 import { StudioPanel } from './components/StudioPanel';
-import { ApiKeyModal } from './components/ApiKeyModal';
 import { AgentConfigModal } from './components/AgentConfigModal';
 import { produce } from 'immer';
 import { t, Language } from './utils/translations';
@@ -30,6 +33,7 @@ import { PromptWizardModal } from './components/PromptWizardModal';
 import { SavePromptModal } from './components/SavePromptModal';
 import { RefreshCwIcon } from './components/icons';
 import JSZip from 'jszip';
+import { VideoFeed } from './components/VideoFeed';
 
 const MAX_FILE_SIZE_MB = 4.5;
 
@@ -82,6 +86,7 @@ const App: React.FC = () => {
   // Transcription and Media Stream state
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(false);
   const [currentSpeaker, setCurrentSpeaker] = useState<'user' | 'interlocutor'>('interlocutor');
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -92,7 +97,6 @@ const App: React.FC = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [isStudioPanelCollapsed, setIsStudioPanelCollapsed] = useState(true);
   const [isSourcesPanelCollapsed, setIsSourcesPanelCollapsed] = useState(false);
   const [showAgentConfigModal, setShowAgentConfigModal] = useState(false);
@@ -113,7 +117,6 @@ const App: React.FC = () => {
 
   
   // AI and Data state
-  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(() => sessionStorage.getItem('geminiApiKey'));
   const [isProcessingAgent, setIsProcessingAgent] = useState(false);
   const [isProcessingSource, setIsProcessingSource] = useState(false);
   const [isProcessingGuide, setIsProcessingGuide] = useState(false);
@@ -129,7 +132,7 @@ const App: React.FC = () => {
   const promptImportFileRef = useRef<HTMLInputElement>(null);
   const { sessions, saveSession, deleteSession, getSessionAudio, importSession } = useSessionHistory();
   const { prompts, addPrompt, updatePrompt, deletePrompt, importPrompts } = usePrompts();
-  const lang = session.settings.language as Language;
+  const lang = session?.settings.language as Language || 'ru';
   
   // Debounced auto-save
   const debouncedSave = useCallback(
@@ -145,7 +148,9 @@ const App: React.FC = () => {
         isInitialMount.current = false;
         return;
     }
-    debouncedSave(session, loadedAudio);
+    if (session) {
+      debouncedSave(session, loadedAudio);
+    }
   }, [session, loadedAudio, debouncedSave]);
 
 
@@ -159,6 +164,7 @@ const App: React.FC = () => {
           sender: newSpeaker
       };
       setSession(produce(draft => {
+        if (!draft) return;
         draft.messages.push(newMessage);
         
         let transcription = draft.sources.find(s => s.type === 'transcription');
@@ -171,20 +177,28 @@ const App: React.FC = () => {
   const onRecordingComplete = useCallback((audioBlob: Blob | null) => {
     setLoadedAudio(audioBlob);
     
-    setSession(produce(draft => {
-        let transcriptionSource = draft.sources.find(s => s.type === 'transcription');
-        if (!transcriptionSource) {
-            transcriptionSource = { id: `source-transcription-${draft.id}`, name: 'Live Transcription', type: 'transcription', content: [] };
-            draft.sources.push(transcriptionSource);
-        }
-        transcriptionSource.content = draft.messages.filter(m => m.timestamp !== -1);
-        draft.hasAudio = !!audioBlob;
-    }));
-    
-    if (audioBlob) {
-        saveSession(session, audioBlob);
-    }
-  }, [session, saveSession]);
+    // Using explicit functional update to be safe inside a memoized callback.
+    setSession(currentSession => {
+      if (!currentSession) {
+        console.error("onRecordingComplete: current session state is null. This should not happen. Re-initializing.");
+        const newSession = getInitialSession();
+        newSession.hasAudio = !!audioBlob;
+        return newSession;
+      }
+
+      return produce(currentSession, draft => {
+          let transcriptionSource = draft.sources.find(s => s.type === 'transcription');
+          if (!transcriptionSource) {
+              transcriptionSource = { id: `source-transcription-${draft.id}`, name: 'Live Transcription', type: 'transcription', content: [] };
+              draft.sources.push(transcriptionSource);
+          }
+          if(transcriptionSource) {
+            transcriptionSource.content = draft.messages.filter(m => m.timestamp !== -1);
+          }
+          draft.hasAudio = !!audioBlob;
+      });
+    });
+  }, [setSession]);
 
   const { isListening, interimTranscript, startListening, stopListening, isSpeechRecognitionSupported, pauseListening, resumeListening } = useTranscription({
       lang,
@@ -194,26 +208,31 @@ const App: React.FC = () => {
   });
   
   useEffect(() => {
-    localStorage.setItem('voiceInkSettings', JSON.stringify(session.settings));
-    document.body.className = `theme-${session.settings.theme}`;
-  }, [session.settings]);
+    if (session?.settings) {
+        localStorage.setItem('voiceInkSettings', JSON.stringify(session.settings));
+        document.body.className = `theme-${session.settings.theme}`;
+    }
+  }, [session?.settings]);
   
   const startNewSession = (name: string, profileId: SessionProfileId, startRecording = false) => {
-        const newSession = getInitialSession();
-        newSession.name = name;
-        newSession.profileId = profileId;
-        newSession.settings = session.settings; // Keep user settings
-        newSession.activeTools = profiles[profileId].tools;
-        
-        resetSession(newSession);
-        setLoadedAudio(null);
-        setPlaybackTime(0);
-        setMainInputText('');
-        setActiveDiscussionTopic(null);
+        setSession(currentSession => {
+            const newSession = getInitialSession();
+            newSession.name = name;
+            newSession.profileId = profileId;
+            newSession.settings = currentSession?.settings || getDefaultSettings();
+            newSession.activeTools = profiles[profileId].tools;
+            
+            resetSession(newSession);
+            setLoadedAudio(null);
+            setPlaybackTime(0);
+            setMainInputText('');
+            setActiveDiscussionTopic(null);
 
-        if (startRecording) {
-            handleContinueRecording();
-        }
+            if (startRecording) {
+                handleContinueRecording();
+            }
+            return newSession;
+        });
     };
     
     const handleContinueRecording = async () => {
@@ -221,60 +240,99 @@ const App: React.FC = () => {
             alert("Speech Recognition is not supported in your browser.");
             return;
         }
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            setMediaStream(stream);
-            setIsRecording(true);
-            setIsPaused(false);
-            
-            setSession(produce(draft => {
-                if (!draft.sources.some(s => s.type === 'transcription')) {
-                     const newSource: Source = { id: `source-transcription-${draft.id}`, name: 'Live Transcription', type: 'transcription', content: [] };
-                     draft.sources.push(newSource);
-                     if (!draft.selectedSourceIds?.includes(newSource.id)) {
-                         draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
-                     }
-                }
-            }));
-        } catch (err) {
-            console.error("Error getting media stream:", err);
-            alert("Could not access microphone.");
-        }
+        setIsRecording(true);
+        setIsPaused(false);
+        
+        setSession(produce(draft => {
+            if (!draft) return;
+            if (!draft.sources.some(s => s.type === 'transcription')) {
+                 const newSource: Source = { id: `source-transcription-${draft.id}`, name: 'Live Transcription', type: 'transcription', content: [] };
+                 draft.sources.push(newSource);
+                 if (!draft.selectedSourceIds?.includes(newSource.id)) {
+                     draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
+                 }
+            }
+        }));
     };
+    
+    useEffect(() => {
+        let isMounted = true;
+    
+        const setupStream = async () => {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+    
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideoEnabled });
+                if (isMounted) {
+                    setMediaStream(stream);
+                }
+            } catch (err) {
+                console.error("Error getting media stream:", err);
+                alert("Could not access microphone/camera.");
+                if (isMounted) {
+                    setIsRecording(false);
+                    setIsVideoEnabled(false);
+                }
+            }
+        };
+    
+        if (isRecording) {
+            setupStream();
+        } else {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                setMediaStream(null);
+            }
+        }
+    
+        return () => {
+            isMounted = false;
+        };
+    }, [isRecording, isVideoEnabled]);
 
     useEffect(() => {
         if (isRecording && mediaStream) {
             startListening();
+        } else {
+            stopListening();
         }
-    }, [isRecording, mediaStream, startListening]);
+    }, [isRecording, mediaStream, startListening, stopListening]);
     
     const handleStop = () => {
         setIsRecording(false);
         setIsPaused(false);
-        stopListening();
-        mediaStream?.getTracks().forEach(track => track.stop());
-        setMediaStream(null);
+    };
+    
+    const handleToggleVideo = () => {
+        setIsVideoEnabled(p => !p);
     };
 
     const handleLoadSession = async (sessionToLoad: Session) => {
         const audioBlob = await getSessionAudio(sessionToLoad.id);
         
-        const defaultSession = getInitialSession();
-        const mergedSession = { ...defaultSession, ...sessionToLoad };
+        setSession(currentSession => {
+            const defaultSession = getInitialSession();
+            const currentSettings = currentSession?.settings || defaultSession.settings;
 
-        const loadedSessionState = produce(mergedSession, draft => {
-            draft.settings = session.settings;
+            const mergedSession = { 
+                ...defaultSession, 
+                ...sessionToLoad,
+                settings: sessionToLoad.settings ? { ...sessionToLoad.settings, theme: currentSettings.theme, language: currentSettings.language } : currentSettings
+            };
+
+            resetSession(mergedSession);
+            setLoadedAudio(audioBlob);
+            setShowHistoryDropdown(false);
+            setMainInputText('');
+            setActiveDiscussionTopic(null);
+            return mergedSession;
         });
-
-        resetSession(loadedSessionState);
-        setLoadedAudio(audioBlob);
-        setShowHistoryDropdown(false);
-        setMainInputText('');
-        setActiveDiscussionTopic(null);
     };
 
     const handleExportSession = async (sessionId: string) => {
-        const sessionToExport = sessionId === session.id ? session : sessions.find(s => s.id === sessionId);
+        const sessionToExport = sessionId === session?.id ? session : sessions.find(s => s.id === sessionId);
 
         if (!sessionToExport) {
             console.error("Session not found for export");
@@ -350,10 +408,6 @@ const App: React.FC = () => {
     }, [editingMessageId]);
 
     const handleAddSource = useCallback(async (file: File | null, url: string) => {
-        if (!geminiApiKey) {
-            setShowApiKeyModal(true);
-            return;
-        }
         setIsProcessingSource(true);
         setShowAddSourceModal(false);
 
@@ -382,9 +436,8 @@ const App: React.FC = () => {
         formData.append('type', sourceType);
 
         try {
-            const response = await fetch('/api/process-source', {
+            const response = await fetch('api/process-source', {
                 method: 'POST',
-                headers: { 'X-API-Key': geminiApiKey },
                 body: formData,
             });
             if (!response.ok) {
@@ -400,6 +453,7 @@ const App: React.FC = () => {
                 isSelected: true
             };
             setSession(produce(draft => {
+                if (!draft) return;
                 draft.sources.push(newSource);
                 draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
             }));
@@ -409,10 +463,11 @@ const App: React.FC = () => {
         } finally {
             setIsProcessingSource(false);
         }
-    }, [geminiApiKey, lang, setSession]);
+    }, [lang, setSession]);
     
     const handleToggleSourceSelection = (sourceId: string) => {
         setSession(produce(draft => {
+            if (!draft) return;
             const currentSelected = draft.selectedSourceIds || [];
             if (currentSelected.includes(sourceId)) {
                 draft.selectedSourceIds = currentSelected.filter(id => id !== sourceId);
@@ -424,6 +479,7 @@ const App: React.FC = () => {
 
     const handleToggleSelectAllSources = () => {
         setSession(produce(draft => {
+            if (!draft) return;
             const allSourceIds = draft.sources.map(s => s.id);
             const currentSelected = draft.selectedSourceIds || [];
             if (currentSelected.length === allSourceIds.length) {
@@ -436,6 +492,7 @@ const App: React.FC = () => {
 
     const handleDeleteSource = (sourceId: string) => {
         setSession(produce(draft => {
+            if (!draft) return;
             draft.sources = draft.sources.filter(s => s.id !== sourceId);
             if (draft.selectedSourceIds) {
                 draft.selectedSourceIds = draft.selectedSourceIds.filter(id => id !== sourceId);
@@ -444,6 +501,7 @@ const App: React.FC = () => {
     };
 
     const buildAIContext = useCallback((): string => {
+        if (!session) return '';
         const selectedSources = session.sources.filter(s => session.selectedSourceIds?.includes(s.id));
         return selectedSources.map(source => {
             let contentString = '';
@@ -454,13 +512,14 @@ const App: React.FC = () => {
             }
             return `--- Source: ${source.name} (${source.type}) ---\n${contentString}`;
         }).join('\n\n');
-    }, [session.sources, session.selectedSourceIds, session.settings]);
+    }, [session]);
     
     const handleSplitMessage = () => {
         if (!selectionContext) return;
         const { messageId, text: selectedText } = selectionContext;
 
         setSession(produce(draft => {
+            if (!draft) return;
             const msgIndex = draft.messages.findIndex(m => m.id === messageId);
             if (msgIndex === -1) return;
 
@@ -490,6 +549,7 @@ const App: React.FC = () => {
     const handleSpeakerChangeOnSelection = (newSpeaker: 'user' | 'interlocutor') => {
         if (!selectionContext) return;
         setSession(produce(draft => {
+            if (!draft) return;
             const msg = draft.messages.find(m => m.id === selectionContext.messageId);
             if (msg) msg.sender = newSpeaker;
         }));
@@ -499,6 +559,7 @@ const App: React.FC = () => {
     const handleDeleteMessageOnSelection = () => {
         if (!selectionContext) return;
         setSession(produce(draft => {
+            if (!draft) return;
             const index = draft.messages.findIndex(m => m.id === selectionContext.messageId);
             if (index > -1) {
                 draft.messages.splice(index, 1);
@@ -514,8 +575,6 @@ const App: React.FC = () => {
     };
 
     const handleAskAIAgent = async (prompt: string) => {
-        if (!geminiApiKey) { setShowApiKeyModal(true); return; }
-    
         const userMessage: Message = {
             id: `msg-user-${Date.now()}`,
             text: prompt,
@@ -530,49 +589,53 @@ const App: React.FC = () => {
             sender: 'assistant',
         };
     
-        // Reconstruct chat history for the AI model
-        const aiChatHistory: AIChatMessage[] = session.messages
+        // Correctly build chat history from the current state BEFORE updating the UI
+        if (!session) return;
+        const aiChatHistory = session.messages
             .filter(m => m.timestamp === -1 && m.text !== '...')
             .map((m): AIChatMessage | null => {
                 if (m.sender === 'user') {
                     return { role: 'user', parts: [{ text: m.text }] };
                 }
-                if (m.sender === 'assistant' && m.answer) {
-                    const modelResponseObject = {
-                        answer: m.answer,
-                        citations: m.citations?.map(c => ({ sourceName: c.sourceName, fragment: c.fragment }))
-                    };
-                    return { role: 'model', parts: [{ text: JSON.stringify(modelResponseObject) }] };
+                // Check if answer is a string and not empty, which is how we store model responses
+                if (m.sender === 'assistant' && typeof m.answer === 'string' && m.answer) {
+                    return { role: 'model', parts: [{ text: m.answer }] };
                 }
                 return null;
             })
             .filter((m): m is AIChatMessage => m !== null);
     
-        aiChatHistory.push({ role: 'user', parts: [{ text: prompt }] });
-    
+        // Fix: Explicitly type the array to ensure parts is treated as a tuple.
+        const chatHistoryWithPrompt: AIChatMessage[] = [...aiChatHistory, { role: 'user', parts: [{ text: prompt }] }];
+        
+        // Now, update the UI optimistically
         setSession(produce(draft => {
+            if (!draft) return;
             draft.messages.push(userMessage);
             draft.messages.push(assistantPlaceholder);
         }));
     
         setIsProcessingAgent(true);
-        setMainInputText(''); 
+        setMainInputText('');
     
         try {
             const context = buildAIContext();
-            const { answer, citations: rawCitations } = await getAgentResponse(geminiApiKey, context, aiChatHistory, lang);
+            
+            // Pass the correctly constructed history
+            const { answer, citations: rawCitations } = await getAgentResponse(context, chatHistoryWithPrompt, lang);
     
-            const processedCitations: Citation[] = rawCitations.map((rawCit, index) => {
-                const source = session.sources.find(s => s.name === rawCit.sourceName);
-                return {
-                    index: index + 1,
-                    sourceName: rawCit.sourceName,
-                    fragment: rawCit.fragment,
-                    sourceId: source ? source.id : null,
-                };
-            });
-
             setSession(produce(draft => {
+                if (!draft) return;
+                const processedCitations: Citation[] = rawCitations.map((rawCit, index) => {
+                    const source = draft.sources.find(s => s.name === rawCit.sourceName);
+                    return {
+                        index: index + 1,
+                        sourceName: rawCit.sourceName,
+                        fragment: rawCit.fragment,
+                        sourceId: source ? source.id : null,
+                    };
+                });
+    
                 const msgToUpdate = draft.messages.find(m => m.id === assistantPlaceholder.id);
                 if (msgToUpdate) {
                     msgToUpdate.text = ''; // Clear placeholder text
@@ -585,6 +648,7 @@ const App: React.FC = () => {
             console.error("Error asking AI Agent:", e);
             alert(t('aiError', lang));
             setSession(produce(draft => {
+                if (!draft) return;
                 draft.messages = draft.messages.filter(m => m.id !== userMessage.id && m.id !== assistantPlaceholder.id);
             }));
         } finally {
@@ -592,11 +656,22 @@ const App: React.FC = () => {
         }
     };
     
+    const handleSaveToNote = useCallback((title: string, content: string, type: string) => {
+        setSession(produce(draft => {
+            if (!draft) return;
+            const newNote: Note = {
+                id: `note-${Date.now()}`,
+                title,
+                content,
+                type,
+                time: new Date().toISOString(),
+            };
+            if (!draft.notes) draft.notes = [];
+            draft.notes.push(newNote);
+        }));
+    }, [setSession]);
+
     const handleTriggerTool = useCallback(async (toolId: StudioToolId) => {
-        if (!geminiApiKey) {
-            setShowApiKeyModal(true);
-            return;
-        }
         const context = buildAIContext();
         if (!context.trim()) {
             alert("Please select at least one source for analysis.");
@@ -609,26 +684,26 @@ const App: React.FC = () => {
         
         switch(toolId) {
             case 'emotionAnalysis':
-                apiCall = (apiKey, context, lang) => getEmotionAnalysis(apiKey, context, lang);
+                apiCall = (context, lang) => getEmotionAnalysis(context, lang);
                 noteTitleKey = 'toolEmotionAnalysis';
                 break;
             case 'tonalityAnalysis':
-                apiCall = (apiKey, context, lang) => getTonalityAnalysis(apiKey, context, lang);
+                apiCall = (context, lang) => getTonalityAnalysis(context, lang);
                 noteTitleKey = 'toolTonalityAnalysis';
                 break;
             case 'textStyle':
-                const style = session.toolSettings?.textStyle;
+                const style = session?.toolSettings?.textStyle;
                 if (style) {
-                    apiCall = (apiKey, context, lang) => getStyledText(apiKey, context, style, lang);
+                    apiCall = (context, lang) => getStyledText(context, style, lang);
                     noteTitleKey = 'toolTextStyle';
                 }
                 break;
             case 'brainstorm':
-                apiCall = (apiKey, context, lang) => getBrainstormIdeas(apiKey, context, lang);
+                apiCall = (context, lang) => getBrainstormIdeas(context, lang);
                 noteTitleKey = 'toolBrainstorm';
                 break;
             case 'grammarCheck':
-                apiCall = (apiKey, context, lang) => getGrammarCheck(apiKey, context, lang);
+                apiCall = (context, lang) => getGrammarCheck(context, lang);
                 noteTitleKey = 'toolGrammarCheck';
                 break;
         }
@@ -636,7 +711,7 @@ const App: React.FC = () => {
         if (apiCall) {
             setProcessingTool(toolId);
             try {
-                const result = await apiCall(geminiApiKey, context, lang);
+                const result = await apiCall(context, lang);
                 handleSaveToNote(t(noteTitleKey, lang), result, noteType);
             } catch (e) {
                 alert(t('aiError', lang));
@@ -646,13 +721,10 @@ const App: React.FC = () => {
         } else {
             console.warn(`Tool ${toolId} is not yet implemented.`);
         }
-    }, [geminiApiKey, lang, buildAIContext, session.toolSettings, setSession]);
+    }, [lang, buildAIContext, session?.toolSettings, handleSaveToNote]);
 
     const handleGenerateSourceGuide = async (sourceId: string) => {
-        if (!geminiApiKey) {
-          setShowApiKeyModal(true);
-          return;
-        }
+        if (!session) return;
         const source = session.sources.find(s => s.id === sourceId);
         if (!source || source.guide) return;
     
@@ -662,9 +734,10 @@ const App: React.FC = () => {
             ? source.content.map(m => m.text).join('\n')
             : source.content;
           
-          const guide = await getSourceGuide(geminiApiKey, content, lang);
+          const guide = await getSourceGuide(content, lang);
           
           setSession(produce(draft => {
+            if (!draft) return;
             const targetSource = draft.sources.find(s => s.id === sourceId);
             if (targetSource) {
               targetSource.guide = guide;
@@ -678,33 +751,34 @@ const App: React.FC = () => {
     };
     
     const handleConvertNoteToSource = (noteId: string) => {
-        const note = session.notes?.find(n => n.id === noteId);
-        if (!note) return;
-        const newSource: Source = {
-            id: `source-${Date.now()}`,
-            name: note.title,
-            type: 'file',
-            content: note.content,
-            isSelected: true,
-        };
         setSession(produce(draft => {
+            if (!draft) return;
+            const note = draft.notes?.find(n => n.id === noteId);
+            if (!note) return;
+            const newSource: Source = {
+                id: `source-${Date.now()}`,
+                name: note.title,
+                type: 'file',
+                content: note.content,
+                isSelected: true,
+            };
             draft.sources.push(newSource);
             draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
         }));
     };
 
     const handleConvertAllNotesToSource = () => {
-        if (!session.notes || session.notes.length === 0) return;
-        const combinedContent = session.notes.map(note => `--- Note: ${note.title} ---\n${note.content}`).join('\n\n');
-        const newSourceName = `${t('allNotes', lang)} - ${new Date().toLocaleDateString()}`;
-        const newSource: Source = {
-            id: `source-${Date.now()}`,
-            name: newSourceName,
-            type: 'file',
-            content: combinedContent,
-            isSelected: true,
-        };
-         setSession(produce(draft => {
+        setSession(produce(draft => {
+            if (!draft || !draft.notes || draft.notes.length === 0) return;
+            const combinedContent = draft.notes.map(note => `--- Note: ${note.title} ---\n${note.content}`).join('\n\n');
+            const newSourceName = `${t('allNotes', lang)} - ${new Date().toLocaleDateString()}`;
+            const newSource: Source = {
+                id: `source-${Date.now()}`,
+                name: newSourceName,
+                type: 'file',
+                content: combinedContent,
+                isSelected: true,
+            };
             draft.sources.push(newSource);
             draft.selectedSourceIds = [...(draft.selectedSourceIds || []), newSource.id];
         }));
@@ -712,7 +786,7 @@ const App: React.FC = () => {
 
     const handleDeleteNote = (noteId: string) => {
         setSession(produce(draft => {
-            if (draft.notes) {
+            if (draft?.notes) {
                 draft.notes = draft.notes.filter(n => n.id !== noteId);
             }
         }));
@@ -720,7 +794,7 @@ const App: React.FC = () => {
 
     const handleRenameNote = (noteId: string, newTitle: string) => {
         setSession(produce(draft => {
-            const note = draft.notes?.find(n => n.id === noteId);
+            const note = draft?.notes?.find(n => n.id === noteId);
             if (note) note.title = newTitle;
         }));
     };
@@ -735,6 +809,7 @@ const App: React.FC = () => {
         };
         let newNoteId = '';
         setSession(produce(draft => {
+          if (!draft) return;
           if (!draft.notes) draft.notes = [];
           draft.notes.push(newNote);
           newNoteId = newNote.id;
@@ -744,33 +819,20 @@ const App: React.FC = () => {
     
     const handleUpdateNoteContent = (noteId: string, newContent: string) => {
         setSession(produce(draft => {
-          const note = draft.notes?.find(n => n.id === noteId);
+          const note = draft?.notes?.find(n => n.id === noteId);
           if (note) note.content = newContent;
-        }));
-    };
-
-    const handleSaveToNote = (title: string, content: string, type: string) => {
-        const newNote: Note = {
-            id: `note-${Date.now()}`,
-            title,
-            content,
-            type,
-            time: new Date().toISOString(),
-        };
-        setSession(produce(draft => {
-            if (!draft.notes) draft.notes = [];
-            draft.notes.push(newNote);
         }));
     };
 
     const handleUpdateActiveTools = (newTools: StudioToolId[]) => {
         setSession(produce(draft => {
-            draft.activeTools = newTools;
+            if(draft) draft.activeTools = newTools;
         }));
     };
 
     const handleUpdateToolSettings = (toolId: StudioToolId, settings: any) => {
         setSession(produce(draft => {
+            if(!draft) return;
             if (!draft.toolSettings) {
                 draft.toolSettings = {};
             }
@@ -788,7 +850,7 @@ const App: React.FC = () => {
     
     const handleRenameSession = (newName: string) => {
         setSession(produce(draft => {
-            draft.name = newName;
+            if(draft) draft.name = newName;
         }));
     };
 
@@ -863,10 +925,6 @@ const App: React.FC = () => {
     };
     
     const handleStartDiscussion = useCallback(async (topic: string) => {
-        if (!geminiApiKey) {
-            setShowApiKeyModal(true);
-            return;
-        }
         const context = buildAIContext();
         if (!context.trim()) {
             alert("Please select at least one source for analysis.");
@@ -891,42 +949,44 @@ const App: React.FC = () => {
         };
 
         setSession(produce(draft => { 
+            if(!draft) return;
             draft.messages.push(thinkingMessage);
             draft.messages.push(assistantPlaceholder);
         }));
 
         try {
-            const rawText = await getDiscussionForTopic(geminiApiKey, topic, context, lang);
+            const rawText = await getDiscussionForTopic(topic, context, lang);
             
-            const citations: Citation[] = [];
-            const citationRegex = /\{\{cite: "([^"]+)"\}\}/g;
-            
-            const findSourceForFragment = (fragment: string) => {
-                 const selectedSources = session.sources.filter(s => session.selectedSourceIds?.includes(s.id));
-                 for (const source of selectedSources) {
-                     const content = Array.isArray(source.content) ? source.content.map(m=>m.text).join('\n') : source.content;
-                     if(content.includes(fragment)) {
-                         return source.id;
+            setSession(produce(draft => {
+                if(!draft) return;
+                const citations: Citation[] = [];
+                const citationRegex = /\{\{cite: "([^"]+)"\}\}/g;
+                
+                const findSourceForFragment = (fragment: string) => {
+                     const selectedSources = draft.sources.filter(s => draft.selectedSourceIds?.includes(s.id));
+                     for (const source of selectedSources) {
+                         const content = Array.isArray(source.content) ? source.content.map(m=>m.text).join('\n') : source.content;
+                         if(content.includes(fragment)) {
+                             return source;
+                         }
                      }
-                 }
-                 return null;
-            }
-
-            let htmlContent = rawText.replace(citationRegex, (match, fragment) => {
-                const sourceId = findSourceForFragment(fragment);
-                if (sourceId) {
-                    const citation: Citation = { index: citations.length + 1, sourceId, sourceName: session.sources.find(s=>s.id === sourceId)?.name || 'Unknown', fragment };
-                    citations.push(citation);
-                    return `{{CITATION:${citations.length - 1}}}`;
+                     return null;
                 }
-                return '';
-            });
 
-            htmlContent = htmlContent
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\n/g, '<br />');
+                let htmlContent = rawText.replace(citationRegex, (match, fragment) => {
+                    const source = findSourceForFragment(fragment);
+                    if (source) {
+                        const citation: Citation = { index: citations.length + 1, sourceId: source.id, sourceName: source.name, fragment };
+                        citations.push(citation);
+                        return `{{CITATION:${citations.length - 1}}}`;
+                    }
+                    return '';
+                });
 
-            setSession(produce(draft => { 
+                htmlContent = htmlContent
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\n/g, '<br />');
+
                 const msgToUpdate = draft.messages.find(m => m.id === assistantPlaceholder.id);
                 if (msgToUpdate) {
                     msgToUpdate.answer = htmlContent;
@@ -940,6 +1000,7 @@ const App: React.FC = () => {
                 : t('aiError', lang);
             
             setSession(produce(draft => { 
+                if (!draft) return;
                 const msgToUpdate = draft.messages.find(m => m.id === assistantPlaceholder.id);
                 if (msgToUpdate) {
                     msgToUpdate.text = `**Error:** ${errorMessage}`;
@@ -948,12 +1009,12 @@ const App: React.FC = () => {
         } finally {
             setIsProcessingDiscussion(false);
         }
-    }, [geminiApiKey, buildAIContext, lang, setSession, session.sources, session.selectedSourceIds]);
+    }, [buildAIContext, lang, setSession]);
     
     const handleCitationClick = (citation: Citation) => {
         if (!citation.sourceId) return;
         setSession(produce(draft => {
-            draft.highlightFragment = { sourceId: citation.sourceId!, fragment: citation.fragment };
+            if(draft) draft.highlightFragment = { sourceId: citation.sourceId!, fragment: citation.fragment };
         }));
         if (isSourcesPanelCollapsed) {
             setIsSourcesPanelCollapsed(false);
@@ -961,25 +1022,22 @@ const App: React.FC = () => {
     };
     
     const handleToggleInsightMode = async () => {
+        if (!session) return;
         const currentlyActive = session.isInsightModeActive;
 
         if (currentlyActive) {
             setSession(produce(draft => {
+                if(!draft) return;
                 draft.isInsightModeActive = false;
                 if(draft.insights) draft.insights = [];
             }));
             return;
         }
 
-        if (!geminiApiKey) {
-            setShowApiKeyModal(true);
-            return;
-        }
-
         setIsProcessingInsights(true);
         try {
             const sourceContext = buildAIContext();
-            const chatContext = session.messages.map(m => m.text).join('\n\n');
+            const chatContext = session.messages.map(m => m.text).join('\n\n') || '';
             const fullText = `${sourceContext}\n\n${chatContext}`;
 
             if (!fullText.trim()) {
@@ -987,8 +1045,9 @@ const App: React.FC = () => {
                 return;
             }
 
-            const insights = await getInsightsForText(geminiApiKey, fullText, lang);
+            const insights = await getInsightsForText(fullText, lang);
             setSession(produce(draft => {
+                if (!draft) return;
                 draft.insights = insights;
                 draft.isInsightModeActive = true;
             }));
@@ -1004,9 +1063,20 @@ const App: React.FC = () => {
     };
 
     const handleAskAboutEntity = (entityName: string, sourceName: string) => {
-        setMainInputText(prev => `${prev}Расскажи мне о "${entityName}" в контексте источника "${sourceName}". `.trim());
+        const prompt = t('tellMeAbout', lang, { entityName: `"${entityName}"` }) + ' ' + t('inTheContextOfSource', lang, { sourceName: `"${sourceName}"` });
+        handleAskAIAgent(prompt);
     };
 
+    if (session === null || typeof session === 'undefined') {
+        return (
+            <div className="bg-slate-950 text-slate-200 h-screen w-screen flex items-center justify-center">
+                <div className="flex items-center gap-4">
+                    <div className="w-8 h-8 border-4 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Initializing session...</span>
+                </div>
+            </div>
+        );
+    }
 
     return (
     <div className={`theme-${session.settings.theme} bg-[var(--bg-main)] text-[var(--text-primary)] h-screen w-screen flex flex-col p-4 pt-0 gap-4`}>
@@ -1060,7 +1130,7 @@ const App: React.FC = () => {
                 onRenameSource={setSourceToRename}
                 onDeleteSource={handleDeleteSource}
                 onStartDiscussion={handleStartDiscussion}
-                onClearHighlight={() => setSession(produce(draft => { draft.highlightFragment = null; }))}
+                onClearHighlight={() => setSession(produce(draft => { if(draft) draft.highlightFragment = null; }))}
                 lang={lang}
                 isProcessingDiscussion={isProcessingDiscussion}
                 onAskAboutEntity={handleAskAboutEntity}
@@ -1098,6 +1168,7 @@ const App: React.FC = () => {
                 editingMessageId={editingMessageId}
                 onUpdateMessage={(id, text) => {
                     setSession(produce(draft => {
+                        if (!draft) return;
                         const msg = draft.messages.find(m => m.id === id);
                         if (msg) msg.text = text;
                     }));
@@ -1110,6 +1181,9 @@ const App: React.FC = () => {
                 onSaveToNote={handleSaveToNote}
                 onCitationClick={handleCitationClick}
               />
+               {isVideoEnabled && mediaStream?.getVideoTracks().length > 0 && (
+                    <VideoFeed stream={mediaStream} onClose={handleToggleVideo} />
+                )}
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-4xl px-4 z-20">
                     <div className="relative space-y-2">
                         <AudioPlayer
@@ -1123,6 +1197,7 @@ const App: React.FC = () => {
                                 isRecording={isRecording}
                                 isPaused={isPaused}
                                 isPushToTalkActive={isPushToTalkActive}
+                                isVideoEnabled={isVideoEnabled}
                                 onStartClick={() => setShowNewSessionModal(true)}
                                 onStopClick={handleStop}
                                 onPauseClick={() => {
@@ -1134,6 +1209,7 @@ const App: React.FC = () => {
                                     setIsPaused(!isPaused);
                                 }}
                                 onMicToggle={() => setIsPushToTalkActive(p => !p)}
+                                onToggleVideo={handleToggleVideo}
                                 lang={lang}
                             />
                             <MainAIChatInput 
@@ -1191,7 +1267,7 @@ const App: React.FC = () => {
             className="hidden"
         />
 
-        {showSettingsModal && <SettingsModal settings={session.settings} onClose={() => setShowSettingsModal(false)} onSave={(newSettings) => setSession(produce(draft => { draft.settings = newSettings; }))} lang={lang} />}
+        {showSettingsModal && <SettingsModal settings={session.settings} onClose={() => setShowSettingsModal(false)} onSave={(newSettings) => setSession(produce(draft => { if(draft) draft.settings = newSettings; }))} lang={lang} />}
         {showStudioConfigModal && <StudioConfigModal 
             onClose={() => setShowStudioConfigModal(false)}
             onSave={handleUpdateActiveTools}
@@ -1218,6 +1294,7 @@ const App: React.FC = () => {
         />}
         {sourceToRename && <RenameSourceModal source={sourceToRename} onClose={() => setSourceToRename(null)} onSave={(id, name) => {
             setSession(produce(draft => {
+                if (!draft) return;
                 const source = draft.sources.find(s => s.id === id);
                 if (source) source.name = name;
             }));
@@ -1226,11 +1303,10 @@ const App: React.FC = () => {
         {showAgentConfigModal && <AgentConfigModal 
             initialSelectedAgents={session.agentConfig} 
             onClose={() => setShowAgentConfigModal(false)} 
-            onSave={(newConfig) => setSession(produce(draft => { draft.agentConfig = newConfig; }))} 
+            onSave={(newConfig) => setSession(produce(draft => { if(draft) draft.agentConfig = newConfig; }))} 
             lang={lang}
             profileId={session.profileId}
         />}
-        {showApiKeyModal && <ApiKeyModal onClose={() => setShowApiKeyModal(false)} onSave={(key) => { sessionStorage.setItem('geminiApiKey', key); setGeminiApiKey(key); setShowApiKeyModal(false); }} lang={lang} />}
         {showNewSessionModal && <NewSessionModal 
             onClose={() => setShowNewSessionModal(false)} 
             onConfirm={(name, profileId) => {
@@ -1244,8 +1320,7 @@ const App: React.FC = () => {
                 handleContinueRecording();
             }}
         />}
-        {showPromptWizardModal && geminiApiKey && <PromptWizardModal
-            apiKey={geminiApiKey}
+        {showPromptWizardModal && <PromptWizardModal
             lang={lang}
             onClose={() => setShowPromptWizardModal(false)}
             onUsePrompt={handleUsePrompt}

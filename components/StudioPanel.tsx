@@ -1,9 +1,7 @@
 
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Note, SessionProfileId, StudioToolId, Session, ToolSettings, TextStyleId, Prompt } from '../types';
 import { t, Language } from '../utils/translations';
-// FIX: Added BookmarkIcon to the import list.
 import { XIcon, EllipsisVerticalIcon, PanelRightCloseIcon, PanelRightIcon, FileTextIcon, PlusCircleIcon, FlashcardsIcon, MindMapIcon, PlusIcon, PencilPlusIcon, EditIcon, LayersIcon, FileExportIcon, TrashIcon, SparklesIcon, FileAudioIcon, MaximizeIcon, ArrowLeftIcon, UndoIcon, RedoIcon, BoldIcon, ItalicIcon, LinkIcon, ListIcon, ListOrderedIcon, RemoveFormattingIcon, EmotionAnalysisIcon, TonalityAnalysisIcon, BookmarkIcon } from './icons';
 import { studioTools, textStyles } from '../utils/profiles';
 import { PromptLibrary } from './PromptLibrary';

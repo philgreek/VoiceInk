@@ -1,16 +1,18 @@
 
 import React from 'react';
-import { MicIcon, SparklesIcon, PlayIcon, PauseIcon, StopIcon } from './icons';
+import { MicIcon, SparklesIcon, PlayIcon, PauseIcon, StopIcon, CameraIcon, CameraOffIcon } from './icons';
 import { t, Language } from '../utils/translations';
 
 interface TranscriptionControlsProps {
   isRecording: boolean;
   isPaused: boolean;
   isPushToTalkActive: boolean;
+  isVideoEnabled: boolean;
   onStartClick: () => void;
   onStopClick: () => void;
   onPauseClick: () => void;
   onMicToggle: () => void;
+  onToggleVideo: () => void;
   lang: Language;
 }
 
@@ -18,10 +20,12 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
   isRecording,
   isPaused,
   isPushToTalkActive,
+  isVideoEnabled,
   onStartClick,
   onStopClick,
   onPauseClick,
   onMicToggle,
+  onToggleVideo,
   lang,
 }) => {
   const isPttDisabled = !isRecording || isPaused;
@@ -37,6 +41,16 @@ export const TranscriptionControls: React.FC<TranscriptionControlsProps> = ({
         className="flex items-stretch justify-center gap-2"
         data-tour-id="transcription-controls"
     >
+       <button
+        onClick={onToggleVideo}
+        className={`${baseButtonClasses} ${
+          isVideoEnabled ? 'bg-slate-700/50' : 'hover:bg-slate-700/50'
+        }`}
+        aria-label={'Toggle Video'}
+      >
+        {isVideoEnabled ? <CameraIcon className="w-5 h-5 text-red-500" /> : <CameraOffIcon className="w-5 h-5" />}
+      </button>
+
       <button
         onClick={onMicToggle}
         disabled={isPttDisabled}
