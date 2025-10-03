@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranscription } from './hooks/useTranscription';
 import { Message, Session, Settings, Insight, Source, SessionProfileId, Note, StudioToolId, Citation, SelectionContext, SourceType, AIChatMessage } from './types';
@@ -20,7 +16,6 @@ import { useSessionHistory } from './hooks/useSessionHistory';
 import { usePrompts } from './hooks/usePrompts';
 import { AudioPlayer } from './components/AudioPlayer';
 import introJs from 'intro.js';
-import { getAgentResponse, getSourceGuide, getEmotionAnalysis, getTonalityAnalysis, getStyledText, getBrainstormIdeas, getGrammarCheck, getDiscussionForTopic, getInsightsForText } from './utils/gemini';
 import { SourcesPanel } from './components/SourcesPanel';
 import { AddSourceModal } from './components/AddSourceModal';
 import { MainAIChatInput } from './components/MainAIChatInput';
@@ -589,7 +584,6 @@ const App: React.FC = () => {
             sender: 'assistant',
         };
     
-        // Correctly build chat history from the current state BEFORE updating the UI
         if (!session) return;
         const aiChatHistory = session.messages
             .filter(m => m.timestamp === -1 && m.text !== '...')
@@ -597,7 +591,6 @@ const App: React.FC = () => {
                 if (m.sender === 'user') {
                     return { role: 'user', parts: [{ text: m.text }] };
                 }
-                // Check if answer is a string and not empty, which is how we store model responses
                 if (m.sender === 'assistant' && typeof m.answer === 'string' && m.answer) {
                     return { role: 'model', parts: [{ text: m.answer }] };
                 }
@@ -605,10 +598,8 @@ const App: React.FC = () => {
             })
             .filter((m): m is AIChatMessage => m !== null);
     
-        // Fix: Explicitly type the array to ensure parts is treated as a tuple.
         const chatHistoryWithPrompt: AIChatMessage[] = [...aiChatHistory, { role: 'user', parts: [{ text: prompt }] }];
         
-        // Now, update the UI optimistically
         setSession(produce(draft => {
             if (!draft) return;
             draft.messages.push(userMessage);
@@ -621,12 +612,22 @@ const App: React.FC = () => {
         try {
             const context = buildAIContext();
             
-            // Pass the correctly constructed history
-            const { answer, citations: rawCitations } = await getAgentResponse(context, chatHistoryWithPrompt, lang);
+            const response = await fetch('api/agent-response', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ context, chatHistoryWithPrompt, lang })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Server error');
+            }
+
+            const { answer, citations: rawCitations } = await response.json();
     
             setSession(produce(draft => {
                 if (!draft) return;
-                const processedCitations: Citation[] = rawCitations.map((rawCit, index) => {
+                const processedCitations: Citation[] = rawCitations.map((rawCit: any, index: number) => {
                     const source = draft.sources.find(s => s.name === rawCit.sourceName);
                     return {
                         index: index + 1,
@@ -638,7 +639,7 @@ const App: React.FC = () => {
     
                 const msgToUpdate = draft.messages.find(m => m.id === assistantPlaceholder.id);
                 if (msgToUpdate) {
-                    msgToUpdate.text = ''; // Clear placeholder text
+                    msgToUpdate.text = '';
                     msgToUpdate.answer = answer;
                     msgToUpdate.citations = processedCitations;
                 }
@@ -678,50 +679,43 @@ const App: React.FC = () => {
             return;
         }
 
-        let apiCall: ((...args: any[]) => Promise<string>) | null = null;
-        let noteType = toolId;
+        const noteType = toolId;
         let noteTitleKey: Parameters<typeof t>[0] = 'note';
-        
         switch(toolId) {
-            case 'emotionAnalysis':
-                apiCall = (context, lang) => getEmotionAnalysis(context, lang);
-                noteTitleKey = 'toolEmotionAnalysis';
-                break;
-            case 'tonalityAnalysis':
-                apiCall = (context, lang) => getTonalityAnalysis(context, lang);
-                noteTitleKey = 'toolTonalityAnalysis';
-                break;
-            case 'textStyle':
-                const style = session?.toolSettings?.textStyle;
-                if (style) {
-                    apiCall = (context, lang) => getStyledText(context, style, lang);
-                    noteTitleKey = 'toolTextStyle';
-                }
-                break;
-            case 'brainstorm':
-                apiCall = (context, lang) => getBrainstormIdeas(context, lang);
-                noteTitleKey = 'toolBrainstorm';
-                break;
-            case 'grammarCheck':
-                apiCall = (context, lang) => getGrammarCheck(context, lang);
-                noteTitleKey = 'toolGrammarCheck';
-                break;
+            case 'emotionAnalysis': noteTitleKey = 'toolEmotionAnalysis'; break;
+            case 'tonalityAnalysis': noteTitleKey = 'toolTonalityAnalysis'; break;
+            case 'textStyle': noteTitleKey = 'toolTextStyle'; break;
+            case 'brainstorm': noteTitleKey = 'toolBrainstorm'; break;
+            case 'grammarCheck': noteTitleKey = 'toolGrammarCheck'; break;
         }
 
-        if (apiCall) {
-            setProcessingTool(toolId);
-            try {
-                const result = await apiCall(context, lang);
-                handleSaveToNote(t(noteTitleKey, lang), result, noteType);
-            } catch (e) {
-                alert(t('aiError', lang));
-            } finally {
-                setProcessingTool(null);
+        setProcessingTool(toolId);
+        try {
+            const response = await fetch('api/studio-tool', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    toolId,
+                    context,
+                    lang,
+                    settings: toolId === 'textStyle' ? session?.toolSettings?.textStyle : undefined
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Server error');
             }
-        } else {
-            console.warn(`Tool ${toolId} is not yet implemented.`);
+
+            const { result } = await response.json();
+            handleSaveToNote(t(noteTitleKey, lang), result, noteType);
+        } catch (e) {
+            console.error(`Error triggering tool ${toolId}:`, e);
+            alert(t('aiError', lang));
+        } finally {
+            setProcessingTool(null);
         }
-    }, [lang, buildAIContext, session?.toolSettings, handleSaveToNote]);
+    }, [lang, buildAIContext, session?.toolSettings, handleSaveToNote, setSession]);
 
     const handleGenerateSourceGuide = async (sourceId: string) => {
         if (!session) return;
@@ -734,7 +728,18 @@ const App: React.FC = () => {
             ? source.content.map(m => m.text).join('\n')
             : source.content;
           
-          const guide = await getSourceGuide(content, lang);
+          const response = await fetch('api/source-guide', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content, lang })
+          });
+
+          if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || 'Server error');
+          }
+          
+          const guide = await response.json();
           
           setSession(produce(draft => {
             if (!draft) return;
@@ -955,7 +960,18 @@ const App: React.FC = () => {
         }));
 
         try {
-            const rawText = await getDiscussionForTopic(topic, context, lang);
+            const response = await fetch('api/start-discussion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic, context, lang })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server error: ${response.status}`);
+            }
+
+            const rawText = await response.text();
             
             setSession(produce(draft => {
                 if(!draft) return;
@@ -1045,7 +1061,19 @@ const App: React.FC = () => {
                 return;
             }
 
-            const insights = await getInsightsForText(fullText, lang);
+            const response = await fetch('api/get-insights', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: fullText, lang })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server error: ${response.status}`);
+            }
+
+            const insights = await response.json();
+
             setSession(produce(draft => {
                 if (!draft) return;
                 draft.insights = insights;

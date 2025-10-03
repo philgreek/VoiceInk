@@ -1,9 +1,9 @@
 const CACHE_NAME = 'voiceink-v3'; // Incremented version
 const URLS_TO_CACHE = [
-  '.',
-  'index.html',
-  'icon.svg',
-  'icon.png'
+  './',
+  './index.html',
+  './icon.svg',
+  './icon.png'
 ];
 
 // On install, cache the app shell and other critical assets

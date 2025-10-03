@@ -1,10 +1,7 @@
-
-
 import React, { useState, useRef, useEffect } from 'react';
 import { XIcon, SparklesIcon, SendIcon } from './icons';
 import { t, Language } from '../utils/translations';
 import { AIChatMessage } from '../types';
-import { getPromptWizardResponse } from '../utils/gemini';
 
 interface PromptWizardModalProps {
   lang: Language;
@@ -34,7 +31,18 @@ export const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ lang, onCl
     setIsLoading(true);
 
     try {
-      const responseText = await getPromptWizardResponse(newMessages, lang);
+      const response = await fetch('api/prompt-wizard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ history: newMessages, lang })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Server error');
+      }
+
+      const responseText = await response.text();
       const modelMessage: AIChatMessage = { role: 'model', parts: [{ text: responseText }] };
       setMessages(prev => [...prev, modelMessage]);
     } catch (error) {
