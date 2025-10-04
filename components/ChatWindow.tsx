@@ -8,6 +8,8 @@ interface ChatWindowProps {
   session: Session;
   interimTranscript: string;
   isRecording: boolean;
+  rawTranscriptionText: string;
+  isDiarizing: boolean;
   isProcessingFile: boolean;
   editingMessageId: string | null;
   onUpdateMessage: (id: string, newText: string) => void;
@@ -239,7 +241,7 @@ const AssistantMessage: React.FC<{
     );
 };
 
-const TranscriptionCard: React.FC<Omit<ChatWindowProps, 'session' | 'interimTranscript' | 'isRecording' | 'isProcessingFile' | 'onSaveToNote' | 'onCitationClick'> & { messages: Message[], session: Session, onSaveToNote: (title: string, content: string, type: string) => void; }> = ({
+const TranscriptionCard: React.FC<Omit<ChatWindowProps, 'session' | 'interimTranscript' | 'isRecording' | 'isProcessingFile' | 'onSaveToNote' | 'onCitationClick' | 'rawTranscriptionText' | 'isDiarizing'> & { messages: Message[], session: Session, onSaveToNote: (title: string, content: string, type: string) => void; }> = ({
     messages,
     session,
     editingMessageId,
@@ -318,6 +320,8 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
     session, 
     interimTranscript, 
     isRecording,
+    rawTranscriptionText,
+    isDiarizing,
     isProcessingFile,
     editingMessageId,
     onUpdateMessage,
@@ -333,7 +337,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, interimTranscript]);
+  }, [messages, interimTranscript, rawTranscriptionText]);
 
   const renderContent = () => {
     if (isProcessingFile) {
@@ -350,7 +354,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
         )
     }
       
-    if (!isRecording && messages.length === 0) {
+    if (!isRecording && messages.length === 0 && !isDiarizing) {
         return (
              <Placeholder>
                 <MicIcon className="w-16 h-16 mb-4" />
@@ -387,13 +391,18 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(({
             }
         })}
 
-        {interimTranscript && (
-            <div className="px-4 sm:px-6">
-                <div className="flex gap-3 p-1">
-                    <strong className="w-12 text-right flex-shrink-0 font-sans text-base font-bold text-slate-500">
-                        {settings[isRecording && !interimTranscript.startsWith(settings.user.initial) ? 'interlocutor' : 'user'].initial}:
-                    </strong>
-                    <p className="flex-grow text-slate-500 italic">{interimTranscript}</p>
+        {isRecording && (
+            <div className="px-4 sm:px-6 my-2">
+                <div className="p-4 bg-slate-800/50 rounded-lg font-serif text-lg text-slate-300">
+                    <p>{rawTranscriptionText}<span className="text-slate-500 italic">{interimTranscript}</span></p>
+                </div>
+            </div>
+        )}
+        {isDiarizing && (
+            <div className="px-4 sm:px-6 my-2">
+                <div className="p-4 bg-slate-800/50 rounded-lg flex items-center justify-center gap-3 text-slate-400">
+                    <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm font-semibold">{t('diarizingConversation', lang)}</span>
                 </div>
             </div>
         )}

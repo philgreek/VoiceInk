@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language, t } from "./translations";
 import { ActionItem, TextStyle, AIAgentExpertise, AIAgentDomain, AIChatMessage, Entity, Source, Message, SourceGuide, TextStyleId, Citation, Insight } from "../types";
@@ -17,19 +16,74 @@ const handleAIError = (error: unknown, context: string): never => {
 const safelyGetText = (response: GenerateContentResponse): string => {
     try {
         const text = response.text;
-        // The text property should always exist and be a string on a successful response.
         if (typeof text === 'string') {
             return text.trim();
         }
-        // This path indicates an unusual but non-exception-throwing failure.
-        console.warn("Could not extract text from Gemini response. The 'text' property was not a string.", { response });
-        return '';
     } catch (e) {
-        // This path indicates the .text getter threw an error, which is unexpected.
-        console.error("Error accessing the .text property on the Gemini response.", { error: e, response });
-        return '';
+        console.warn("response.text getter failed, falling back.", e);
+    }
+    // Fallback for cases where .text getter fails or isn't populated
+    try {
+        const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (typeof text === 'string') {
+            return text.trim();
+        }
+    } catch (e) {
+        console.error("Error during manual parsing of Gemini response:", e);
+    }
+    console.warn("Could not extract text from Gemini response. Returning empty string.", { response });
+    return '';
+};
+
+export const getDiarizedTranscription = async (text: string, lang: Language): Promise<{ sender: 'user' | 'interlocutor', text: string }[]> => {
+    try {
+        const ai = getAIClient();
+        const prompt = `Analyze the following transcript of a two-person conversation. Your task is to split the text into individual speaker turns. The speakers are "user" and "interlocutor". Identify who is speaking for each segment. Structure your response as a valid JSON array of objects, where each object has a "sender" key (either "user" or "interlocutor") and a "text" key with their corresponding speech. Ensure the sequence of turns is correct. Respond in ${lang}.
+
+        Transcript:
+        ---
+        ${text}
+        ---
+        `;
+
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            sender: {
+                                type: Type.STRING,
+                                enum: ['user', 'interlocutor'],
+                                description: "The speaker of the text segment, either 'user' or 'interlocutor'."
+                            },
+                            text: {
+                                type: Type.STRING,
+                                description: "The transcribed text for that speaker's turn."
+                            }
+                        },
+                        required: ["sender", "text"]
+                    }
+                }
+            }
+        });
+
+        const jsonText = safelyGetText(response);
+        try {
+            return JSON.parse(jsonText);
+        } catch (e) {
+            console.error("Failed to parse JSON response from Gemini for diarization:", jsonText);
+            throw new Error("AI returned an invalid response format.");
+        }
+    } catch (error) {
+        handleAIError(error, 'diarization');
     }
 };
+
 
 export const getSummary = async (text: string, lang: Language): Promise<string> => {
     // This function can now take the full context from all sources

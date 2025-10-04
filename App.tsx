@@ -82,7 +82,8 @@ const App: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
-  const [currentSpeaker, setCurrentSpeaker] = useState<'user' | 'interlocutor'>('interlocutor');
+  const [rawTranscriptionText, setRawTranscriptionText] = useState('');
+  const [isDiarizing, setIsDiarizing] = useState(false);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playbackTime, setPlaybackTime] = useState(0);
@@ -105,7 +106,6 @@ const App: React.FC = () => {
 
   // UI interaction state
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
-  const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [mainInputText, setMainInputText] = useState('');
   const [promptToSave, setPromptToSave] = useState<string | null>(null);
@@ -151,48 +151,64 @@ const App: React.FC = () => {
 
   // Transcription hook setup
   const onFinalTranscript = useCallback((transcript: string) => {
-      const newSpeaker = isPushToTalkActive ? 'user' : currentSpeaker;
-      const newMessage: Message = {
-          id: `msg-${Date.now()}`,
-          text: transcript,
-          timestamp: audioRef.current?.currentTime ?? 0,
-          sender: newSpeaker
-      };
-      setSession(produce(draft => {
-        if (!draft) return;
-        draft.messages.push(newMessage);
-        
-        let transcription = draft.sources.find(s => s.type === 'transcription');
-        if (transcription) {
-            (transcription.content as Message[]).push(newMessage);
+    setRawTranscriptionText(prev => (prev ? prev.trim() + ' ' : '') + transcript.trim());
+  }, []);
+
+  const handleDiarizeConversation = async () => {
+    if (!rawTranscriptionText.trim()) return;
+
+    setIsDiarizing(true);
+    const textToProcess = rawTranscriptionText;
+    setRawTranscriptionText(''); 
+
+    try {
+        const response = await fetch('/api/diarize-transcription', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: textToProcess, lang })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Diarization failed');
         }
-      }));
-  }, [currentSpeaker, isPushToTalkActive, setSession]);
+
+        const diarizedResult: { sender: 'user' | 'interlocutor', text: string }[] = await response.json();
+        
+        setSession(produce(draft => {
+            if (!draft) return;
+
+            const newMessages: Message[] = diarizedResult.map(m => ({
+                id: `msg-${Date.now()}-${Math.random()}`,
+                text: m.text,
+                timestamp: 0, // Simplified timestamp for now
+                sender: m.sender
+            }));
+
+            draft.messages.push(...newMessages);
+            
+            let transcriptionSource = draft.sources.find(s => s.type === 'transcription');
+            if (!transcriptionSource) {
+                transcriptionSource = { id: `source-transcription-${draft.id}`, name: t('sourceTypeTranscription', lang), type: 'transcription', content: [] };
+                draft.sources.push(transcriptionSource);
+            }
+            transcriptionSource.content = draft.messages.filter(m => m.timestamp !== -1);
+        }));
+
+    } catch (error) {
+        console.error("Error during diarization:", error);
+        alert(t('aiError', lang));
+        setRawTranscriptionText(textToProcess);
+    } finally {
+        setIsDiarizing(false);
+    }
+};
 
   const onRecordingComplete = useCallback((audioBlob: Blob | null) => {
     setLoadedAudio(audioBlob);
-    
-    // Using explicit functional update to be safe inside a memoized callback.
-    setSession(currentSession => {
-      if (!currentSession) {
-        console.error("onRecordingComplete: current session state is null. This should not happen. Re-initializing.");
-        const newSession = getInitialSession();
-        newSession.hasAudio = !!audioBlob;
-        return newSession;
-      }
-
-      return produce(currentSession, draft => {
-          let transcriptionSource = draft.sources.find(s => s.type === 'transcription');
-          if (!transcriptionSource) {
-              transcriptionSource = { id: `source-transcription-${draft.id}`, name: 'Live Transcription', type: 'transcription', content: [] };
-              draft.sources.push(transcriptionSource);
-          }
-          if(transcriptionSource) {
-            transcriptionSource.content = draft.messages.filter(m => m.timestamp !== -1);
-          }
-          draft.hasAudio = !!audioBlob;
-      });
-    });
+    setSession(produce(draft => {
+      if (!draft) return;
+      draft.hasAudio = !!audioBlob;
+    }));
   }, [setSession]);
 
   const { isListening, interimTranscript, startListening, stopListening, isSpeechRecognitionSupported, pauseListening, resumeListening } = useTranscription({
@@ -221,6 +237,7 @@ const App: React.FC = () => {
             setLoadedAudio(null);
             setPlaybackTime(0);
             setMainInputText('');
+            setRawTranscriptionText('');
             setActiveDiscussionTopic(null);
 
             if (startRecording) {
@@ -237,6 +254,7 @@ const App: React.FC = () => {
         }
         setIsRecording(true);
         setIsPaused(false);
+        setRawTranscriptionText('');
         
         setSession(produce(draft => {
             if (!draft) return;
@@ -298,6 +316,7 @@ const App: React.FC = () => {
     const handleStop = () => {
         setIsRecording(false);
         setIsPaused(false);
+        handleDiarizeConversation();
     };
     
     const handleToggleVideo = () => {
@@ -321,6 +340,7 @@ const App: React.FC = () => {
             setLoadedAudio(audioBlob);
             setShowHistoryDropdown(false);
             setMainInputText('');
+            setRawTranscriptionText('');
             setActiveDiscussionTopic(null);
             return mergedSession;
         });
@@ -1192,6 +1212,8 @@ const App: React.FC = () => {
                 session={session}
                 interimTranscript={interimTranscript}
                 isRecording={isRecording}
+                rawTranscriptionText={rawTranscriptionText}
+                isDiarizing={isDiarizing}
                 isProcessingFile={isProcessingSource}
                 editingMessageId={editingMessageId}
                 onUpdateMessage={(id, text) => {
@@ -1224,7 +1246,6 @@ const App: React.FC = () => {
                              <TranscriptionControls
                                 isRecording={isRecording}
                                 isPaused={isPaused}
-                                isPushToTalkActive={isPushToTalkActive}
                                 isVideoEnabled={isVideoEnabled}
                                 onStartClick={() => setShowNewSessionModal(true)}
                                 onStopClick={handleStop}
@@ -1236,7 +1257,6 @@ const App: React.FC = () => {
                                     }
                                     setIsPaused(!isPaused);
                                 }}
-                                onMicToggle={() => setIsPushToTalkActive(p => !p)}
                                 onToggleVideo={handleToggleVideo}
                                 lang={lang}
                             />

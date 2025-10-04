@@ -1,10 +1,10 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Note, SessionProfileId, StudioToolId, Session, ToolSettings, TextStyleId, Prompt } from '../types';
 import { t, Language } from '../utils/translations';
-import { XIcon, EllipsisVerticalIcon, PanelRightCloseIcon, PanelRightIcon, FileTextIcon, PlusCircleIcon, FlashcardsIcon, MindMapIcon, PlusIcon, PencilPlusIcon, EditIcon, LayersIcon, FileExportIcon, TrashIcon, SparklesIcon, FileAudioIcon, MaximizeIcon, ArrowLeftIcon, UndoIcon, RedoIcon, BoldIcon, ItalicIcon, LinkIcon, ListIcon, ListOrderedIcon, RemoveFormattingIcon, EmotionAnalysisIcon, TonalityAnalysisIcon, BookmarkIcon } from './icons';
+import { XIcon, EllipsisVerticalIcon, PanelRightCloseIcon, PanelRightIcon, FileTextIcon, PlusCircleIcon, FlashcardsIcon, MindMapIcon, PlusIcon, PencilPlusIcon, EditIcon, LayersIcon, FileExportIcon, TrashIcon, SparklesIcon, FileAudioIcon, MaximizeIcon, ArrowLeftIcon, UndoIcon, RedoIcon, BoldIcon, ItalicIcon, LinkIcon, ListIcon, ListOrderedIcon, RemoveFormattingIcon, EmotionAnalysisIcon, TonalityAnalysisIcon, BookmarkIcon, LineChartIcon } from './icons';
 import { studioTools, textStyles } from '../utils/profiles';
 import { PromptLibrary } from './PromptLibrary';
+import { SpeakerAnalysis } from './SpeakerAnalysis';
 
 interface StudioPanelProps {
   isCollapsed: boolean;
@@ -30,7 +30,7 @@ interface StudioPanelProps {
   onImportPrompts: () => void;
 }
 
-type StudioTab = 'tools' | 'notes' | 'prompts';
+type StudioTab = 'analysis' | 'tools' | 'notes' | 'prompts';
 
 const ToolCard: React.FC<{ 
     toolId: StudioToolId, 
@@ -325,7 +325,7 @@ const NoteDetailView: React.FC<{
 export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
   const { isCollapsed, onToggleCollapse, session, lang, onDeleteNote, onRenameNote, onConvertToSource, onConvertAllNotesToSource, onAddNewNote, onUpdateNoteContent, onConfigureToolsClick, onTriggerTool, processingTool, onUpdateToolSettings, prompts, onUsePrompt, onUpdatePrompt, onDeletePrompt, onOpenPromptWizard, onExportPrompts, onImportPrompts } = props;
   const [viewingNoteId, setViewingNoteId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<StudioTab>('tools');
+  const [activeTab, setActiveTab] = useState<StudioTab>('analysis');
 
   const notes = session.notes || [];
   const viewingNote = notes.find(n => n.id === viewingNoteId);
@@ -342,7 +342,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
     ${isCollapsed ? 'w-16 basis-16' : (viewingNote ? 'w-[50vw] max-w-2xl basis-[50vw]' : 'w-80 basis-80')}`;
 
   const tabButtonClass = (tab: StudioTab) => 
-    `px-3 py-2 text-sm font-semibold rounded-md transition-colors ${
+    `px-3 py-2 text-sm font-semibold rounded-md transition-colors w-full ${
       activeTab === tab 
       ? 'bg-slate-700 text-white' 
       : 'text-slate-400 hover:bg-slate-800 hover:text-white'
@@ -382,6 +382,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
 
                 {isCollapsed ? (
                     <div className="flex-grow flex flex-col items-center justify-center p-2 space-y-4">
+                        <button onClick={() => { onToggleCollapse(); setActiveTab('analysis')}} className="w-full aspect-square text-slate-300 hover:bg-slate-700/50 rounded-lg flex items-center justify-center"><LineChartIcon className="w-6 h-6"/></button>
                         <button onClick={() => { onToggleCollapse(); setActiveTab('tools')}} className="w-full aspect-square text-slate-300 hover:bg-slate-700/50 rounded-lg flex items-center justify-center"><SparklesIcon className="w-6 h-6"/></button>
                         <button onClick={() => { onToggleCollapse(); setActiveTab('notes')}} className="w-full aspect-square text-slate-300 hover:bg-slate-700/50 rounded-lg flex items-center justify-center"><FileTextIcon className="w-6 h-6"/></button>
                         <button onClick={() => { onToggleCollapse(); setActiveTab('prompts')}} className="w-full aspect-square text-slate-300 hover:bg-slate-700/50 rounded-lg flex items-center justify-center"><BookmarkIcon className="w-6 h-6"/></button>
@@ -390,6 +391,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
                 <>
                     <div className="p-2 border-b border-[var(--border-color)]">
                         <div className="flex items-center justify-center bg-slate-800 p-1 rounded-lg">
+                            <button className={tabButtonClass('analysis')} onClick={() => setActiveTab('analysis')}>{t('analysis', lang)}</button>
                             <button className={tabButtonClass('tools')} onClick={() => setActiveTab('tools')}>{t('tools', lang)}</button>
                             <button className={tabButtonClass('notes')} onClick={() => setActiveTab('notes')}>{t('notes', lang)}</button>
                             <button className={tabButtonClass('prompts')} onClick={() => setActiveTab('prompts')}>{t('prompts', lang)}</button>
@@ -397,6 +399,9 @@ export const StudioPanel: React.FC<StudioPanelProps> = (props) => {
                     </div>
 
                     <div className="flex-grow overflow-y-auto">
+                        {activeTab === 'analysis' && (
+                            <SpeakerAnalysis session={session} />
+                        )}
                         {activeTab === 'tools' && (
                              <div className="p-4">
                                 <div className="flex justify-end mb-4">
